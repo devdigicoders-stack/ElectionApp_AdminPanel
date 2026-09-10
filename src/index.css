@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+@theme {
+    --color-primary: var(--primary);
+    --color-primary-rgb: var(--primary-rgb);
+    --color-secondary: var(--secondary);
+    --color-secondary-rgb: var(--secondary-rgb);
+    --color-primary-light: var(--primary-light);
+    --color-primary-lighter: var(--primary-lighter);
+    --color-secondary-light: var(--secondary-light);
+}
+
+/* ── CSS Variables (set dynamically by BrandingContext) ── */
+:root {
+    --primary: #4f46e5;
+    --primary-rgb: 79, 70, 229;
+    --secondary: #f59e0b;
+    --secondary-rgb: 245, 158, 11;
+    --primary-light: rgba(79, 70, 229, 0.12);
+    --primary-lighter: rgba(79, 70, 229, 0.06);
+    --secondary-light: rgba(245, 158, 11, 0.12);
+}
+
+/* ── Utility classes using CSS variables ── */
+.bg-primary {
+    background-color: var(--primary) !important;
+}
+
+.text-primary {
+    color: var(--primary) !important;
+}
+
+.border-primary {
+    border-color: var(--primary) !important;
+}
+
+.bg-primary-light {
+    background-color: var(--primary-light) !important;
+}
+
+.text-primary-light {
+    color: var(--primary) !important;
+}
+
+.bg-secondary {
+    background-color: var(--secondary) !important;
+}
+
+.text-secondary {
+    color: var(--secondary) !important;
+}
+
+.border-secondary {
+    border-color: var(--secondary) !important;
+}
+
+.bg-secondary-light {
+    background-color: var(--secondary-light) !important;
+}
+
+.btn-primary {
+    background-color: var(--primary) !important;
+    color: #ffffff !important;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    transition: all 0.18s ease-in-out;
+    box-shadow: 0 4px 12px 0 rgba(var(--primary-rgb), 0.25);
+}
+
+.btn-primary:hover {
+    opacity: 0.92;
+    box-shadow: 0 6px 18px 0 rgba(var(--primary-rgb), 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    opacity: 0.85;
+}
+
+.btn-primary:disabled {
+    opacity: 0.55 !important;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background-color: var(--secondary) !important;
+    color: #ffffff !important;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    transition: all 0.18s ease-in-out;
+    box-shadow: 0 4px 12px 0 rgba(var(--secondary-rgb), 0.25);
+}
+
+.btn-secondary:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+/* ── Ring / Focus using primary ── */
+.ring-primary {
+    --tw-ring-color: var(--primary);
+}
+
+.focus-primary:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
+}
+
+/* ── Gradient using primary ── */
+.gradient-primary {
+    background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000));
+}
+
+/* ── Nav active state ── */
+.nav-active {
+    background-color: var(--primary) !important;
+    color: #fff !important;
+}
+
+/* ── Badge primary ── */
+.badge-primary {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+/* ── Scrollbar hide ── */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ── Smooth transitions ── */
+* {
+    -webkit-tap-highlight-color: transparent;
+}

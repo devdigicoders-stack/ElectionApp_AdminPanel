@@ -1,0 +1,373 @@
+// ============================================================
+//   ADMIN PANEL — ALL APIs READY TO INTEGRATE
+//   Base URL: http://localhost:3000  (ya apna backend URL)
+//   Auth Header: Authorization: Bearer <token>
+// ============================================================
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
+
+// ── TOKEN & TENANT HELPERS ────────────────────────────────
+const getToken = () => localStorage.getItem('admin_token')
+
+// ✅ Tenant Slug: SIRF .env ke VITE_TENANT_SLUG se aata hai
+// Agar alag tenant test karna ho — .env me VITE_TENANT_SLUG=<slug> badlo aur server restart karo
+const getTenantSlug = () => import.meta.env.VITE_TENANT_SLUG || ''
+
+// ── COMMENTED: URL & localStorage based tenant detection ──
+// (pehle ?tenant=kj URL param ya localStorage se tenant pick hota tha)
+// const getTenantSlug = () => {
+//   if (typeof window !== 'undefined') {
+//     // 1️⃣ URL param se check karo (?tenant=kj)
+//     const urlParams = new URLSearchParams(window.location.search)
+//     const slugFromQuery = urlParams.get('tenant')
+//     if (slugFromQuery) {
+//       localStorage.setItem('tenant_slug', slugFromQuery)
+//       return slugFromQuery
+//     }
+//     // 2️⃣ localStorage se check karo
+//     const slugFromStorage = localStorage.getItem('tenant_slug')
+//     if (slugFromStorage) return slugFromStorage
+//   }
+//   // 3️⃣ .env se fallback (VITE_TENANT_SLUG=demo)
+//   return import.meta.env.VITE_TENANT_SLUG || ''
+// }
+
+
+const authHeader = () => {
+  const headers = { 'Content-Type': 'application/json' }
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const tenantSlug = getTenantSlug()
+  if (tenantSlug) headers['x-tenant-slug'] = tenantSlug
+  return headers
+}
+
+// ── GENERIC FETCH HELPER ──────────────────────────────────
+async function api(method, path, body = null) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: authHeader(),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.message || 'API Error')
+  return data
+}
+
+// =============================================================
+// 1. AUTH
+// =============================================================
+export const AuthAPI = {
+  adminLogin: (email, password) => api('POST', '/auth/admin/login', { email, password }),
+  superAdminLogin: (email, password) => api('POST', '/auth/super-admin/login', { email, password }),
+  sendOtp: (mobile) => api('POST', '/auth/send-otp', { mobile }),
+  verifyOtp: (mobile, otp) => api('POST', '/auth/verify-otp', { mobile, otp }),
+}
+
+// =============================================================
+// 2. DASHBOARD
+// =============================================================
+export const DashboardAPI = {
+  getSummary: () => api('GET', '/dashboard'),
+}
+
+// =============================================================
+// 3. CITIZENS (CRM — User Management)
+// =============================================================
+export const CitizensAPI = {
+  // GET /citizens?search=&areaId=&status=&page=&limit=
+  getAll: (params = {}) => api('GET', `/citizens?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/citizens/${id}`),
+  update: (id, data) => api('PATCH', `/citizens/${id}`, data),
+  updateStatus: (id, status) => api('PATCH', `/citizens/${id}/status`, { status }),
+  upgradeCategory: (id, category) => api('PATCH', `/citizens/${id}/category`, { category }),
+  addTags: (id, tags) => api('POST', `/citizens/${id}/tags`, { tags }),
+  removeTag: (id, tag) => api('DELETE', `/citizens/${id}/tags/${tag}`),
+  bulkAddTags: (userIds, tags) => api('POST', '/citizens/bulk-tags', { userIds, tags }),
+  bulkRemoveTag: (userIds, tag) => api('POST', '/citizens/bulk-untag', { userIds, tag }),
+  getAvailableTags: () => api('GET', '/citizens/tags'),
+  getAnalytics: () => api('GET', '/citizens/analytics'),
+  exportCSV: (params = {}) => `${BASE_URL}/citizens/export?${new URLSearchParams(params)}&token=${getToken()}`,
+  assignMembership: (id, data) => api('POST', `/citizens/${id}/membership`, data),
+  assignVolunteer: (id, data) => api('POST', `/citizens/${id}/volunteer`, data),
+}
+
+// =============================================================
+// 4. USERS (General)
+// =============================================================
+export const UsersAPI = {
+  getAll: (params = {}) => api('GET', `/users?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/users/${id}`),
+  getStats: () => api('GET', '/users/stats'),
+  getAreaCount: () => api('GET', '/users/area-count'),
+  toggleActive: (id, isActive) => api('PATCH', `/users/${id}/toggle-active`, { isActive }),
+  updateProfile: (data) => api('PATCH', '/users/profile', data),
+}
+
+// =============================================================
+// 5. ADMIN USERS (Staff)
+// =============================================================
+export const AdminUsersAPI = {
+  getAll: () => api('GET', '/admin-users'),
+  getOne: (id) => api('GET', `/admin-users/${id}`),
+  create: (data) => api('POST', '/admin-users', data),
+  update: (id, data) => api('PATCH', `/admin-users/${id}`, data),
+  remove: (id) => api('DELETE', `/admin-users/${id}`),
+}
+
+// =============================================================
+// 6. AREAS (8-Level Hierarchy)
+// =============================================================
+export const AreasAPI = {
+  getTree: () => api('GET', '/areas/tree'),
+  getLevels: () => api('GET', '/areas/levels'),
+  getByLevel: (levelId) => api('GET', `/areas/by-level/${levelId}`),
+  getChildren: (id) => api('GET', `/areas/${id}/children`),
+  createLevel: (data) => api('POST', '/areas/levels', data),
+  updateLevel: (id, data) => api('PATCH', `/areas/levels/${id}`, data),
+  deleteLevel: (id) => api('DELETE', `/areas/levels/${id}`),
+  createArea: (data) => api('POST', '/areas', data),
+}
+
+// =============================================================
+// 7. COMPLAINTS
+// =============================================================
+export const ComplaintsAPI = {
+  getAll: (params = {}) => api('GET', `/complaints?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/complaints/${id}`),
+  getStats: () => api('GET', '/complaints/stats'),
+  getMine: () => api('GET', '/complaints/my'),
+  create: (data) => api('POST', '/complaints', data),
+  updateStatus: (id, status, note = '') => api('PATCH', `/complaints/${id}/status`, { status, note }),
+}
+
+// =============================================================
+// 8. WORKS (Development Projects)
+// =============================================================
+export const WorksAPI = {
+  getAll: (params = {}) => api('GET', `/works?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/works/${id}`),
+  getStats: () => api('GET', '/works/stats'),
+  create: (data) => api('POST', '/works', data),
+  update: (id, data) => api('PATCH', `/works/${id}`, data),
+  remove: (id) => api('DELETE', `/works/${id}`),
+}
+
+// =============================================================
+// 9. EVENTS
+// =============================================================
+export const EventsAPI = {
+  getAll: (params = {}) => api('GET', `/events?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/events/${id}`),
+  create: (data) => api('POST', '/events', data),
+  update: (id, data) => api('PATCH', `/events/${id}`, data),
+  remove: (id) => api('DELETE', `/events/${id}`),
+  rsvp: (id, status) => api('POST', `/events/${id}/rsvp`, { status }),
+  getMyRsvp: (id) => api('GET', `/events/${id}/my-rsvp`),
+}
+
+// =============================================================
+// 10. POLLS
+// =============================================================
+export const PollsAPI = {
+  getAll: (areaId = '') => api('GET', `/polls${areaId ? '?areaId=' + areaId : ''}`),
+  getOne: (id) => api('GET', `/polls/${id}`),
+  create: (data) => api('POST', '/polls', data),
+  update: (id, data) => api('PATCH', `/polls/${id}`, data),
+  remove: (id) => api('DELETE', `/polls/${id}`),
+  vote: (id, optionId) => api('POST', `/polls/${id}/vote`, { optionId }),
+  getMyVote: (id) => api('GET', `/polls/${id}/my-vote`),
+}
+
+// =============================================================
+// 11. MEMBERSHIP
+// =============================================================
+export const MembershipAPI = {
+  // Admin APIs
+  getAll: (params = {}) => api('GET', `/membership?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/membership/${id}`),
+  getStats: () => api('GET', '/membership/stats'),
+  approve: (id, data) => api('PATCH', `/membership/${id}/approve`, data),
+  reject: (id, reason) => api('PATCH', `/membership/${id}/reject`, { reason }),
+  regenerateCard: (id, data) => api('POST', `/membership/${id}/regenerate-card`, data),
+  updateCardDetails: (id, data) => api('PATCH', `/membership/${id}/card-details`, data),
+  downloadCard: (id) => `${BASE_URL}/membership/${id}/card/download`,
+  verifyQR: (membershipNumber) => api('GET', `/membership/verify/${membershipNumber}`),
+  // Citizen APIs (for reference)
+  apply: (data) => api('POST', '/membership/apply', data),
+  getMine: () => api('GET', '/membership/my'),
+  getMyCard: () => api('GET', '/membership/my/card'),
+  downloadMyCard: () => `${BASE_URL}/membership/my/card/download`,
+}
+
+// =============================================================
+// 12. VOLUNTEERS
+// =============================================================
+export const VolunteersAPI = {
+  getAll: (params = {}) => api('GET', `/volunteers?${new URLSearchParams(params)}`),
+  getMine: () => api('GET', '/volunteers/my'),
+  add: (data) => api('POST', '/volunteers', data),
+  update: (id, data) => api('PATCH', `/volunteers/${id}`, data),
+  remove: (id) => api('DELETE', `/volunteers/${id}`),
+}
+
+// =============================================================
+// 13. VOLUNTEER TASKS
+// =============================================================
+export const VolunteerTasksAPI = {
+  getAll: (params = {}) => api('GET', `/volunteer-tasks?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/volunteer-tasks/${id}`),
+  getMyTasks: () => api('GET', '/volunteer-tasks/my'),
+  getStats: () => api('GET', '/volunteer-tasks/stats'),
+  create: (data) => api('POST', '/volunteer-tasks', data),
+  update: (id, data) => api('PATCH', `/volunteer-tasks/${id}`, data),
+  updateStatus: (id, status) => api('PATCH', `/volunteer-tasks/${id}/status`, { status }),
+  remove: (id) => api('DELETE', `/volunteer-tasks/${id}`),
+}
+
+// =============================================================
+// 14. GALLERY
+// =============================================================
+export const GalleryAPI = {
+  getAll: (params = {}) => api('GET', `/gallery?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/gallery/${id}`),
+  create: (data) => api('POST', '/gallery', data),
+  update: (id, data) => api('PATCH', `/gallery/${id}`, data),
+  remove: (id) => api('DELETE', `/gallery/${id}`),
+}
+
+// =============================================================
+// 15. MANIFESTO
+// =============================================================
+export const ManifestoAPI = {
+  getAll: (params = {}) => api('GET', `/manifesto?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/manifesto/${id}`),
+  create: (data) => api('POST', '/manifesto', data),
+  update: (id, data) => api('PATCH', `/manifesto/${id}`, data),
+  remove: (id) => api('DELETE', `/manifesto/${id}`),
+}
+
+// =============================================================
+// 16. NEWS / ARTICLES
+// =============================================================
+export const NewsAPI = {
+  getAll: (params = {}) => api('GET', `/news?${new URLSearchParams(params)}`),
+  getAllAdmin: (params = {}) => api('GET', `/news/admin?${new URLSearchParams(params)}`),
+  getOne: (id) => api('GET', `/news/${id}`),
+  getCategories: () => api('GET', '/news/categories'),
+  getStats: () => api('GET', '/news/stats'),
+  create: (data) => api('POST', '/news', data),
+  update: (id, data) => api('PATCH', `/news/${id}`, data),
+  updateStatus: (id, status) => api('PATCH', `/news/${id}/status`, { status }),
+  remove: (id) => api('DELETE', `/news/${id}`),
+}
+
+// =============================================================
+// 17. NOTIFICATIONS
+// =============================================================
+export const NotificationsAPI = {
+  // Admin
+  create: (data) => api('POST', '/notifications', data),
+  send: (id) => api('POST', `/notifications/${id}/send`),
+  getAllAdmin: (params = {}) => api('GET', `/notifications/admin?${new URLSearchParams(params)}`),
+  remove: (id) => api('DELETE', `/notifications/${id}`),
+  // Citizen
+  getMine: (params = {}) => api('GET', `/notifications/my?${new URLSearchParams(params)}`),
+  getUnreadCount: () => api('GET', '/notifications/unread-count'),
+  markRead: (id) => api('PATCH', `/notifications/${id}/read`),
+}
+
+// =============================================================
+// 18. BANNERS
+// =============================================================
+export const BannersAPI = {
+  getAll: (params = {}) => api('GET', `/banners?${new URLSearchParams(params)}`),
+  getActive: () => api('GET', '/banners/active'),
+  getOne: (id) => api('GET', `/banners/${id}`),
+  create: (data) => api('POST', '/banners', data),
+  update: (id, data) => api('PATCH', `/banners/${id}`, data),
+  toggleActive: (id, isActive) => api('PATCH', `/banners/${id}/toggle`, { isActive }),
+  remove: (id) => api('DELETE', `/banners/${id}`),
+}
+
+// =============================================================
+// 19. POSTER GENERATOR
+// =============================================================
+export const PosterAPI = {
+  // Admin — Template Management
+  getTemplates: (category = '') => api('GET', `/poster-generator/templates${category ? '?category=' + category : ''}`),
+  getCategories: () => api('GET', '/poster-generator/templates/categories'),
+  getOneTemplate: (id) => api('GET', `/poster-generator/templates/${id}`),
+  createTemplate: (data) => api('POST', '/poster-generator/templates', data),
+  updateTemplate: (id, data) => api('PATCH', `/poster-generator/templates/${id}`, data),
+  removeTemplate: (id) => api('DELETE', `/poster-generator/templates/${id}`),
+  // Citizen
+  generatePoster: (templateId, formData) => {
+    // formData = FormData object with photo file + fieldValues JSON string
+    return fetch(`${BASE_URL}/poster-generator/generate/${templateId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: formData,
+    }).then(r => r.json())
+  },
+  getMyPosters: () => api('GET', '/poster-generator/my-posters'),
+}
+
+// =============================================================
+// 20. REGISTRATION FORM BUILDER
+// =============================================================
+export const RegistrationFormAPI = {
+  getPublicForm: () => api('GET', '/registration-form/public'),
+  getAdminForm: () => api('GET', '/registration-form'),
+  updateFields: (fields) => api('PUT', '/registration-form/fields', { fields }),
+  addField: (data) => api('POST', '/registration-form/fields', data),
+  updateField: (key, data) => api('PATCH', `/registration-form/fields/${key}`, data),
+  deleteField: (key) => api('DELETE', `/registration-form/fields/${key}`),
+  resetDefault: () => api('POST', '/registration-form/reset-default'),
+  completeProfile: (data) => api('POST', '/registration-form/complete-profile', data),
+}
+
+// =============================================================
+// 21. ABOUT LEADER
+// =============================================================
+export const LeaderAPI = {
+  get: () => api('GET', '/about-leader'),
+  update: (data) => api('PUT', '/about-leader', data),
+}
+
+// =============================================================
+// 22. DASHBOARD / DOMAIN / USAGE (Tenant Settings)
+// =============================================================
+export const TenantSettingsAPI = {
+  getDomainStatus: () => api('GET', '/dashboard/domain'),
+  configureDomain: (domain) => api('POST', '/dashboard/domain', { domain }),
+  verifyDomain: () => api('POST', '/dashboard/domain/verify'),
+  removeDomain: () => api('DELETE', '/dashboard/domain'),
+  getUsage: () => api('GET', '/dashboard/usage'),
+}
+
+// =============================================================
+// 23. FILE UPLOAD
+// =============================================================
+export const UploadAPI = {
+  // module = 'gallery' | 'works' | 'events' | 'banners' | 'misc' | 'branding'
+  uploadFiles: (module, files) => {
+    const formData = new FormData()
+    files.forEach(f => formData.append('files', f))
+    const uploadHeaders = { Authorization: `Bearer ${getToken()}` }
+    const slug = getTenantSlug()
+    if (slug) uploadHeaders['x-tenant-slug'] = slug
+    return fetch(`${BASE_URL}/uploads/${module}`, {
+      method: 'POST',
+      headers: uploadHeaders,
+      body: formData,
+    }).then(r => r.json())
+  }
+}
+
+// =============================================================
+// 24. PUBLIC CONFIG (App Bootstrap)
+// =============================================================
+export const ConfigAPI = {
+  getConfig: () => api('GET', '/config'),
+}
