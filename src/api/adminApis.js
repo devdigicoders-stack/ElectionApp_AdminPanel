@@ -61,6 +61,37 @@ async function api(method, path, body = null) {
   return data
 }
 
+// ── AUTHENTICATED FILE DOWNLOAD HELPER ────────────────────
+export async function downloadFile(path, defaultFilename = 'download') {
+  const headers = {}
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const tenantSlug = getTenantSlug()
+  if (tenantSlug) headers['x-tenant-slug'] = tenantSlug
+
+  const res = await fetch(`${BASE_URL}${path}`, { headers })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const errMsg = data.message || `Download failed with status ${res.status}`
+    throw new Error(errMsg)
+  }
+  const blob = await res.blob()
+  const contentDisposition = res.headers.get('content-disposition')
+  let filename = defaultFilename
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/)
+    if (match && match[1]) filename = match[1]
+  }
+  const blobUrl = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
+}
+
 // =============================================================
 // 1. AUTH
 // =============================================================
@@ -270,16 +301,41 @@ export const PollsAPI = {
 // 11. MEMBERSHIP
 // =============================================================
 export const MembershipAPI = {
-  // Admin APIs
-  getAll: (params = {}) => api('GET', `/membership?${new URLSearchParams(params)}`),
+  // Admin APIs - Members & Applications
+  getAll: (params = {}) => {
+    const cleaned = {}
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') cleaned[k] = v
+    })
+    const qs = new URLSearchParams(cleaned).toString()
+    return api('GET', `/membership${qs ? '?' + qs : ''}`)
+  },
   getOne: (id) => api('GET', `/membership/${id}`),
   getStats: () => api('GET', '/membership/stats'),
-  approve: (id, data) => api('PATCH', `/membership/${id}/approve`, data),
+  approve: (id, data = {}) => api('PATCH', `/membership/${id}/approve`, data),
   reject: (id, reason) => api('PATCH', `/membership/${id}/reject`, { reason }),
-  regenerateCard: (id, data) => api('POST', `/membership/${id}/regenerate-card`, data),
+  regenerateCard: (id, data = {}) => api('POST', `/membership/${id}/regenerate-card`, data),
   updateCardDetails: (id, data) => api('PATCH', `/membership/${id}/card-details`, data),
   downloadCard: (id) => `${BASE_URL}/membership/${id}/card/download`,
+  downloadCardBlob: (id, filename) => downloadFile(`/membership/${id}/card/download`, filename || `membership-card-${id}.png`),
+  exportCsv: (params = {}) => {
+    const cleaned = {}
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') cleaned[k] = v
+    })
+    const qs = new URLSearchParams(cleaned).toString()
+    return downloadFile(`/membership/export${qs ? '?' + qs : ''}`, `members-${new Date().toISOString().slice(0, 10)}.csv`)
+  },
   verifyQR: (membershipNumber) => api('GET', `/membership/verify/${membershipNumber}`),
+
+  // Admin APIs - Membership Plans Management
+  getPlans: () => api('GET', '/membership/plans/admin'),
+  getPublicPlans: () => api('GET', '/membership/plans'),
+  getPlan: (id) => api('GET', `/membership/plans/${id}`),
+  createPlan: (data) => api('POST', '/membership/plans', data),
+  updatePlan: (id, data) => api('PATCH', `/membership/plans/${id}`, data),
+  deletePlan: (id) => api('DELETE', `/membership/plans/${id}`),
+
   // Citizen APIs (for reference)
   apply: (data) => api('POST', '/membership/apply', data),
   getMine: () => api('GET', '/membership/my'),
