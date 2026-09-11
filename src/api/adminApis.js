@@ -49,8 +49,15 @@ async function api(method, path, body = null) {
     headers: authHeader(),
     body: body ? JSON.stringify(body) : undefined,
   })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.message || 'API Error')
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const errMsg = Array.isArray(data.errors) && data.errors.length
+      ? data.errors.join(', ')
+      : Array.isArray(data.message)
+      ? data.message.join(', ')
+      : data.message || `Request failed with status ${res.status}`
+    throw new Error(errMsg)
+  }
   return data
 }
 
@@ -221,13 +228,42 @@ export const EventsAPI = {
 // 10. POLLS
 // =============================================================
 export const PollsAPI = {
-  getAll: (areaId = '') => api('GET', `/polls${areaId ? '?areaId=' + areaId : ''}`),
+  // List polls — supports ?status=active|upcoming|closed|all&category=&areaId=&page=&limit=
+  getAll: (params = {}) => {
+    const q = new URLSearchParams()
+    if (params.areaId)   q.set('areaId',   params.areaId)
+    if (params.category) q.set('category', params.category)
+    if (params.status)   q.set('status',   params.status)
+    if (params.page)     q.set('page',     params.page)
+    if (params.limit)    q.set('limit',    params.limit)
+    const qs = q.toString()
+    return api('GET', `/polls${qs ? '?' + qs : ''}`)
+  },
+  // GET /polls/:id — single poll detail
   getOne: (id) => api('GET', `/polls/${id}`),
+  // POST /polls — create poll
+  // Body fields: question(req), options[](req strings), description?, category?,
+  //   startsAt?, endsAt?, durationHours?, durationDays?, resultDeclaredAt?,
+  //   targetAudience?(ALL|MEMBERS|VOLUNTEERS|AREA), targetAreaId?, targetGender?,
+  //   targetMinAge?, targetMaxAge?, resultVisibility?(AFTER_VOTE|AFTER_CLOSE|ADMIN_ONLY),
+  //   allowRevote?, allowMultipleChoices?, maxChoices?, isActive?
   create: (data) => api('POST', '/polls', data),
+  // PATCH /polls/:id — update poll (same optional fields as create)
   update: (id, data) => api('PATCH', `/polls/${id}`, data),
+  // DELETE /polls/:id — delete poll + votes (Admin/Leader only)
   remove: (id) => api('DELETE', `/polls/${id}`),
+  // POST /polls/:id/vote — citizen cast vote { optionId? | optionIds[]? }
   vote: (id, optionId) => api('POST', `/polls/${id}/vote`, { optionId }),
+  // GET /polls/:id/my-vote — citizen's own vote for a poll
   getMyVote: (id) => api('GET', `/polls/${id}/my-vote`),
+  // GET /polls/:id/analytics — full analytics: option breakdown, area, gender, age, timeline
+  getAnalytics: (id) => api('GET', `/polls/${id}/analytics`),
+  // GET /polls/:id/export — CSV export of voter audit log (?format=csv)
+  exportCsv: (id) => api('GET', `/polls/${id}/export?format=csv`),
+  // POST /polls/:id/declare-result — manually declare result now
+  declareResult: (id) => api('POST', `/polls/${id}/declare-result`),
+  // POST /polls/:id/close — manually close poll now
+  closePoll: (id) => api('POST', `/polls/${id}/close`),
 }
 
 // =============================================================
