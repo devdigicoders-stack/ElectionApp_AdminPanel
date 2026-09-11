@@ -127,6 +127,8 @@ export const AreasAPI = {
   updateLevel: (id, data) => api('PATCH', `/areas/levels/${id}`, data),
   deleteLevel: (id) => api('DELETE', `/areas/levels/${id}`),
   createArea: (data) => api('POST', '/areas', data),
+  updateArea: (id, data) => api('PATCH', `/areas/${id}`, data),
+  deleteArea: (id) => api('DELETE', `/areas/${id}`),
 }
 
 // =============================================================
@@ -324,18 +326,21 @@ export const NotificationsAPI = {
   getMine: (params = {}) => api('GET', `/notifications/my?${new URLSearchParams(params)}`),
   getUnreadCount: () => api('GET', '/notifications/unread-count'),
   markRead: (id) => api('PATCH', `/notifications/${id}/read`),
+  registerFcmToken: (token) => api('POST', '/notifications/register-token', { token }),
+  testPush: (token) => api('POST', '/notifications/test-push', { token }),
 }
 
 // =============================================================
 // 18. BANNERS
 // =============================================================
 export const BannersAPI = {
-  getAll: (params = {}) => api('GET', `/banners?${new URLSearchParams(params)}`),
-  getActive: () => api('GET', '/banners/active'),
+  getAll: (params = {}) => api('GET', `/banners/all${Object.keys(params).length ? '?' + new URLSearchParams(params) : ''}`),
+  getActive: () => api('GET', '/banners'),
   getOne: (id) => api('GET', `/banners/${id}`),
   create: (data) => api('POST', '/banners', data),
   update: (id, data) => api('PATCH', `/banners/${id}`, data),
-  toggleActive: (id, isActive) => api('PATCH', `/banners/${id}/toggle`, { isActive }),
+  toggleActive: (id, isActive) => api('PATCH', `/banners/${id}`, { isActive }),
+  reorder: (orders) => api('PATCH', '/banners/reorder', { orders }),
   remove: (id) => api('DELETE', `/banners/${id}`),
 }
 
@@ -392,6 +397,8 @@ export const LeaderAPI = {
 // 22. DASHBOARD / DOMAIN / USAGE (Tenant Settings)
 // =============================================================
 export const TenantSettingsAPI = {
+  getBranding: () => api('GET', '/dashboard/branding'),
+  updateBranding: (data) => api('PATCH', '/dashboard/branding', data),
   getDomainStatus: () => api('GET', '/dashboard/domain'),
   configureDomain: (domain) => api('POST', '/dashboard/domain', { domain }),
   verifyDomain: () => api('POST', '/dashboard/domain/verify'),
