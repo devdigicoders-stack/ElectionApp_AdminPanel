@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Star, CheckSquare, Plus, X, ClipboardList } from 'lucide-react'
 import { VolunteersAPI, VolunteerTasksAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const EMPTY_TASK = { title: '', description: '', deadline: '', volunteerId: '' }
 
@@ -42,14 +43,24 @@ export default function VolunteersPage() {
     finally { setSaving(false) }
   }
   const handleRemoveVolunteer = async (id) => {
-    if (!confirm('Remove volunteer?')) return
+    const confirmed = await confirmDialog({
+      title: 'Remove Volunteer?',
+      text: 'Are you sure you want to remove this volunteer?',
+      confirmButtonText: 'Yes, Remove',
+    })
+    if (!confirmed) return
     try { await VolunteersAPI.remove(id); show('Removed!'); load() } catch (e) { show(e.message, 'error') }
   }
   const handleUpdateVolunteer = async (id, data) => {
     try { await VolunteersAPI.update(id, data); show('Updated!'); load() } catch (e) { show(e.message, 'error') }
   }
   const handleRemoveTask = async (id) => {
-    if (!confirm('Delete task?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Task?',
+      text: 'Are you sure you want to delete this volunteer task?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await VolunteerTasksAPI.remove(id); show('Task deleted!'); load() } catch (e) { show(e.message, 'error') }
   }
 

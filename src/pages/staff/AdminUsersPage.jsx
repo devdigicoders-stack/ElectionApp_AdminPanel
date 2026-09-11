@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { UserCheck, Plus, X } from 'lucide-react'
 import { AdminUsersAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const ROLES = ['admin', 'content_manager', 'complaint_manager', 'volunteer_manager', 'coordinator']
 const EMPTY = { name: '', email: '', password: '', role: 'admin', isActive: true }
@@ -49,7 +50,12 @@ export default function AdminUsersPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Remove this staff member?')) return
+    const confirmed = await confirmDialog({
+      title: 'Remove Staff Member?',
+      text: 'Are you sure you want to remove this staff member?',
+      confirmButtonText: 'Yes, Remove',
+    })
+    if (!confirmed) return
     try { await AdminUsersAPI.remove(id); show('Staff removed!'); load() } catch (e) { show(e.message, 'error') }
   }
 

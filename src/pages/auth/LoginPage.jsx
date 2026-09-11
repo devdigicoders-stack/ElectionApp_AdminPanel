@@ -188,8 +188,8 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Remember Me & Forgot? */}
-            <div className="flex items-center justify-between pt-1">
+            {/* Remember Me */}
+            <div className="flex items-center pt-1">
               <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-600">
                 <input
                   type="checkbox"
@@ -199,12 +199,6 @@ export default function LoginPage() {
                 />
                 <span>Remember me</span>
               </label>
-              <button
-                type="button"
-                className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                Forgot?
-              </button>
             </div>
 
             {/* Login Button */}
@@ -231,13 +225,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Footer Branding */}
-          <div className="mt-auto pt-8 pb-4 text-center">
-            <p className="text-[11px] font-semibold text-slate-400 tracking-wider">
-              Powered by JanConnect
-            </p>
-          </div>
         </div>
 
       </div>

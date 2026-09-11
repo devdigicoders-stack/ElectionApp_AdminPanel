@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Flag, Plus, X } from 'lucide-react'
 import { BannersAPI, UploadAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const EMPTY = { title:'', subtitle:'', type:'homepage', link:'', isActive:true }
 const TYPES  = ['homepage','campaign','popup','notification']
@@ -52,7 +53,12 @@ export default function BannersPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete banner?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Banner?',
+      text: 'Are you sure you want to delete this banner?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await BannersAPI.remove(id); show('Deleted!'); load() } catch(e) { show(e.message,'error') }
   }
 

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { ManifestoAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const catIcons = {
   Infrastructure: HardHat,
@@ -41,7 +42,12 @@ export default function ManifestoDetailPage() {
   useEffect(() => { load() }, [id])
 
   const handleDelete = async () => {
-    if (!confirm('Delete this manifesto point?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Manifesto Point?',
+      text: 'Are you sure you want to delete this manifesto point?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await ManifestoAPI.remove(id); show('Deleted!'); navigate(-1) }
     catch(e) { show(e.message,'error') }
   }

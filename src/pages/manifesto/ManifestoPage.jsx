@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { HardHat, HeartPulse, GraduationCap, Sprout, Users, Zap, FileText, Plus, X } from 'lucide-react'
 import { ManifestoAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const CATS = ['Infrastructure', 'Healthcare', 'Education', 'Agriculture', 'Women Empowerment', 'Youth']
 const EMPTY = { title: '', description: '', category: 'Infrastructure', isPublished: true }
@@ -51,7 +52,12 @@ export default function ManifestoPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Manifesto Point?',
+      text: 'Are you sure you want to delete this manifesto point?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await ManifestoAPI.remove(id); show('Deleted!'); load() } catch (e) { show(e.message, 'error') }
   }
 

@@ -13,7 +13,7 @@ import {
   Bell,
   ChevronRight
 } from 'lucide-react'
-import { DashboardAPI, ComplaintsAPI, CitizensAPI, WorksAPI } from '../../api/adminApis'
+import { DashboardAPI, ComplaintsAPI, PollsAPI } from '../../api/adminApis'
 import { useBranding } from '../../context/BrandingContext'
 import { Skeleton, ApiError } from '../../hooks/useFetch.jsx'
 
@@ -22,6 +22,8 @@ const statusColor = {
   in_progress: 'bg-blue-100 text-blue-700',
   resolved: 'bg-green-100 text-green-700',
   assigned: 'bg-purple-100 text-purple-700',
+  under_review: 'bg-amber-100 text-amber-700',
+  submitted: 'bg-blue-100 text-blue-700',
 }
 
 export default function DashboardPage() {
@@ -38,14 +40,65 @@ export default function DashboardPage() {
   const load = async () => {
     setLoading(true); setError(null)
     try {
-      const [sum, cs, cmps] = await Promise.all([
+      const [sum, cs, cmps, pollsRes] = await Promise.all([
         DashboardAPI.getSummary().catch(() => null),
         ComplaintsAPI.getStats().catch(() => null),
         ComplaintsAPI.getAll({ limit: 5, page: 1 }).catch(() => null),
+        PollsAPI.getAll().catch(() => null),
       ])
-      setSummary(sum?.data ?? sum)
-      setCmpStats(cs?.data ?? cs)
-      const list = cmps?.data?.complaints ?? cmps?.data ?? cmps?.complaints ?? []
+      const rawSum = sum?.data ?? sum ?? {}
+      const rawCs = cs?.data ?? cs ?? {}
+
+      // 1. Citizen & People metrics (100% Dynamic from MongoDB API)
+      const totalUsers = rawSum?.stats?.users ?? rawSum?.totalUsers ?? 0
+      const totalMembers = rawSum?.stats?.membership?.approved ?? rawSum?.totalMembers ?? 0
+      const totalVolunteers = rawSum?.stats?.volunteers ?? rawSum?.totalVolunteers ?? 0
+      const upcomingEvents = rawSum?.stats?.events?.upcoming ?? rawSum?.upcomingEvents ?? 0
+
+      // 2. Polls metrics (100% Dynamic from Polls API)
+      const pollsList = pollsRes?.data?.polls ?? pollsRes?.data ?? (Array.isArray(pollsRes) ? pollsRes : [])
+      const activePolls = Array.isArray(pollsList)
+        ? pollsList.filter(p => p.isActive !== false).length
+        : 0
+
+      // 3. Complaints metrics (100% Dynamic from Backend)
+      const sumComplaints = rawSum?.stats?.complaints || {}
+      const sumSubmitted = rawCs?.submitted ?? 0
+      const sumUnderReview = rawCs?.under_review ?? 0
+      const sumAssigned = rawCs?.assigned ?? 0
+      const sumInProgress = rawCs?.in_progress ?? 0
+      const sumResolved = rawCs?.resolved ?? sumComplaints?.resolved ?? 0
+
+      // Pending = submitted + under_review + assigned + in_progress
+      const calcPending = sumSubmitted + sumUnderReview + sumAssigned + sumInProgress
+      const pendingCmp = sumComplaints?.pending || calcPending || 0
+      const resolvedCmp = sumComplaints?.resolved || sumResolved || 0
+      const totalCmp = sumComplaints?.total || (pendingCmp + resolvedCmp) || 0
+      const newCmp = sumSubmitted || 0
+
+      setSummary({
+        totalUsers,
+        totalMembers,
+        totalVolunteers,
+        upcomingEvents,
+        activePolls,
+        totalWorks: rawSum?.stats?.works?.total ?? 0,
+        completedWorks: rawSum?.stats?.works?.completed ?? 0,
+        ...rawSum,
+      })
+
+      setCmpStats({
+        total: totalCmp,
+        pending: pendingCmp,
+        resolved: resolvedCmp,
+        new: newCmp,
+        submitted: sumSubmitted,
+        under_review: sumUnderReview,
+        assigned: sumAssigned,
+        in_progress: sumInProgress,
+      })
+
+      const list = cmps?.data?.complaints ?? cmps?.data?.items ?? cmps?.data ?? rawSum?.recentComplaints ?? []
       setRecent(Array.isArray(list) ? list.slice(0, 5) : [])
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
@@ -125,9 +178,9 @@ export default function DashboardPage() {
         <h3 className="text-sm font-bold text-gray-800 mb-3">Quick Actions</h3>
         <div className="grid grid-cols-4 gap-3">
           {[
-            { icon: <AlertTriangle className="w-5 h-5 text-red-500" />, label: 'Add Complaint', path: '/complaints', color: 'bg-red-50' },
-            { icon: <HardHat className="w-5 h-5 text-blue-600" />, label: 'Add Work', path: '/works', color: 'bg-blue-50' },
-            { icon: <Calendar className="w-5 h-5 text-emerald-600" />, label: 'Add Event', path: '/events', color: 'bg-green-50' },
+            { icon: <AlertTriangle className="w-5 h-5 text-red-500" />, label: 'Complaint', path: '/complaints', color: 'bg-red-50' },
+            { icon: <HardHat className="w-5 h-5 text-blue-600" />, label: 'Work', path: '/works', color: 'bg-blue-50' },
+            { icon: <Calendar className="w-5 h-5 text-emerald-600" />, label: 'Event', path: '/events', color: 'bg-green-50' },
             { icon: <BarChart3 className="w-5 h-5 text-purple-600" />, label: 'Create Poll', path: '/polls', color: 'bg-purple-50' },
           ].map(a => (
             <button key={a.label} onClick={() => navigate(a.path)}
@@ -182,7 +235,7 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-black" style={{ color: 'var(--primary)' }}>{c.complaintNumber || '#' + c._id?.slice(-4)}</p>
                   <p className="text-sm font-semibold text-gray-800 truncate">{c.title}</p>
-                  <p className="text-[10px] text-gray-400">{c.area?.name || ''} · {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : ''}</p>
+                  <p className="text-[10px] text-gray-400">{c.areaId?.name || c.area?.name || ''} · {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : ''}</p>
                 </div>
                 <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full ${statusColor[c.status?.toLowerCase()] || 'bg-gray-100 text-gray-500'}`}>
                   {c.status}

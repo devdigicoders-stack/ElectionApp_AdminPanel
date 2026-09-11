@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Newspaper, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { NewsAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const EMPTY = { title:'', content:'', category:'Announcement', status:'draft', summary:'' }
 const CATEGORIES = ['Announcement','Article','Press Release','Blog','Event','Achievement']
@@ -68,7 +69,12 @@ export default function NewsPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this article?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Article?',
+      text: 'Are you sure you want to delete this article?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await NewsAPI.remove(id); show('Deleted!'); load() } catch(e) { show(e.message,'error') }
   }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { BarChart3, Plus, X } from 'lucide-react'
 import { PollsAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 export default function PollsPage() {
   const { show, Toast } = useToast()
@@ -40,7 +41,12 @@ export default function PollsPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete poll?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Poll?',
+      text: 'Are you sure you want to delete this poll?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await PollsAPI.remove(id); show('Deleted!'); load() } catch (e) { show(e.message, 'error') }
   }
 

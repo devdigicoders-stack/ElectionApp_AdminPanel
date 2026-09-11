@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Palette, Plus, X } from 'lucide-react'
-import { PosterAPI, UploadAPI } from '../../api/adminApis'
+import { useNavigate } from 'react-router-dom'
+import { PosterAPI, UploadAPI, BASE_URL } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const EMPTY = { name: '', category: 'Birthday', description: '', fields: [], isActive: true }
-const CATS = ['Birthday', 'Campaign', 'Works', 'Event', 'Festival', 'Achievement']
+const DEFAULT_CATS = ['Birthday', 'Political Campaign', 'Festival', 'National Day', 'Congratulations', 'Event Promotion', 'General']
 
 const FIELD_CONFIG = [
   { key: 'photo', label: 'Photo Zone', editable: true },
@@ -17,8 +19,9 @@ const FIELD_CONFIG = [
 
 export default function PostersPage() {
   const { show, Toast } = useToast()
+  const navigate = useNavigate()
   const [templates, setTemplates] = useState([])
-  const [cats, setCats] = useState([])
+  const [cats, setCats] = useState(DEFAULT_CATS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selCat, setSelCat] = useState('All')
@@ -28,17 +31,26 @@ export default function PostersPage() {
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState(null)
 
+  const resolveUrl = (url) => {
+    if (!url) return ''
+    if (url.startsWith('http') || url.startsWith('data:')) return url
+    return `${BASE_URL}${url}`
+  }
+
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
       const [res, catRes] = await Promise.all([
-        PosterAPI.getTemplates(selCat !== 'All' ? selCat : ''),
+        PosterAPI.getAdminTemplates(selCat !== 'All' ? { category: selCat } : {}),
         PosterAPI.getCategories(),
       ])
       const data = res?.data ?? res
       const catData = catRes?.data ?? catRes
       setTemplates(Array.isArray(data?.templates ?? data) ? (data?.templates ?? data) : [])
-      setCats(Array.isArray(catData?.categories ?? catData) ? (catData?.categories ?? catData) : [])
+      const fetchedCats = Array.isArray(catData?.categories ?? catData) ? (catData?.categories ?? catData) : []
+      if (fetchedCats.length > 0) {
+        setCats(Array.from(new Set([...fetchedCats, ...DEFAULT_CATS])))
+      }
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }, [selCat])
@@ -46,24 +58,37 @@ export default function PostersPage() {
   useEffect(() => { load() }, [load])
 
   const handleSave = async () => {
-    if (!form.name.trim()) { show('Template name required', 'error'); return }
+    const templateTitle = (form.name || form.title || '').trim()
+    if (!templateTitle) { show('Template name required', 'error'); return }
     setSaving(true)
     try {
-      let imageUrl = form.imageUrl || ''
+      let imageUrl = form.imageUrl || form.templateImageUrl || ''
       if (files.length > 0) {
         const up = await UploadAPI.uploadFiles('posters', files)
         imageUrl = up?.urls?.[0] || ''
       }
-      const payload = { ...form, imageUrl }
+      const payload = {
+        ...form,
+        title: templateTitle,
+        name: templateTitle,
+        templateImageUrl: imageUrl,
+        imageUrl,
+      }
       if (editId) await PosterAPI.updateTemplate(editId, payload)
       else await PosterAPI.createTemplate(payload)
-      show(editId ? 'Updated!' : 'Template created!'); setShowForm(false); setEditId(null); setForm(EMPTY); setFiles([]); load()
+      show(editId ? 'Updated!' : 'Template created!')
+      setShowForm(false); setEditId(null); setForm(EMPTY); setFiles([]); load()
     } catch (e) { show(e.message, 'error') }
     finally { setSaving(false) }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete template?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Poster Template?',
+      text: 'Are you sure you want to delete this poster template?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await PosterAPI.removeTemplate(id); show('Deleted!'); load() } catch (e) { show(e.message, 'error') }
   }
 
@@ -71,7 +96,14 @@ export default function PostersPage() {
     try {
       const res = await PosterAPI.getOneTemplate(id)
       const data = res?.data ?? res
-      setForm({ name: data.name || '', category: data.category || 'Birthday', description: data.description || '', fields: data.fields || [], isActive: data.isActive ?? true, imageUrl: data.imageUrl || '' })
+      setForm({
+        name: data.title || data.name || '',
+        category: data.category || 'Birthday',
+        description: data.description || '',
+        fields: Array.isArray(data.fields) ? data.fields.map(f => typeof f === 'string' ? f : f.key) : [],
+        isActive: data.isActive ?? true,
+        imageUrl: data.templateImageUrl || data.imageUrl || '',
+      })
       setEditId(id); setShowForm(true)
     } catch (e) { show(e.message, 'error') }
   }
@@ -97,7 +129,7 @@ export default function PostersPage() {
 
       {/* Category filter */}
       <div className="flex gap-2 no-scrollbar overflow-x-auto pb-1">
-        {['All', ...CATS].map(c => (
+        {['All', ...cats].map(c => (
           <button key={c} onClick={() => setSelCat(c)}
             className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${selCat === c ? 'text-white border-transparent' : 'bg-white text-gray-500 border-gray-200'}`}
             style={selCat === c ? { background: 'var(--primary)', borderColor: 'var(--primary)' } : {}}>{c}</button>
@@ -123,7 +155,7 @@ export default function PostersPage() {
                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Category</label>
                 <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                   className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none">
-                  {CATS.map(c => <option key={c}>{c}</option>)}
+                  {cats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -131,7 +163,7 @@ export default function PostersPage() {
                 <input type="file" accept="image/*" onChange={e => setFiles(Array.from(e.target.files))}
                   className="w-full text-sm border border-gray-200 rounded-2xl px-4 py-2.5" />
                 {files[0] && <p className="text-xs mt-1 text-green-600 font-semibold">{files[0].name}</p>}
-                {form.imageUrl && !files[0] && <p className="text-xs mt-1 text-gray-400">Current image uploaded</p>}
+                {(form.imageUrl || form.templateImageUrl) && !files[0] && <p className="text-xs mt-1 text-gray-400">Current image uploaded</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-2 block">Editable Zones</label>
@@ -175,38 +207,60 @@ export default function PostersPage() {
 
       {loading ? <Skeleton rows={4} /> : error ? <ApiError message={error} onRetry={load} /> : (
         <div className="grid grid-cols-2 gap-3">
-          {templates.map(t => (
-            <div key={t._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="h-32 relative flex items-center justify-center" style={{ background: 'var(--primary-light)' }}>
-                {t.imageUrl
-                  ? <img src={t.imageUrl} alt={t.name} className="w-full h-full object-cover" />
-                  : <Palette className="w-10 h-10 text-[var(--primary)] opacity-40" />}
-                <div className="absolute top-2 left-2">
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white/90 text-gray-700">{t.category}</span>
+          {templates.map(t => {
+            const displayTitle = t.title || t.name || 'Untitled Template'
+            const displayImg = resolveUrl(t.templateImageUrl || t.imageUrl)
+            return (
+              <div key={t._id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between">
+                {/* Clickable Image Area */}
+                <div
+                  className="h-36 relative flex items-center justify-center bg-gray-900 overflow-hidden cursor-pointer group"
+                  onClick={() => navigate(`/posters/${t._id}`)}
+                >
+                  {displayImg ? (
+                    <img src={displayImg} alt={displayTitle} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <Palette className="w-10 h-10 text-[var(--primary)] opacity-40" />
+                  )}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 text-white text-[11px] font-bold bg-black/60 px-3 py-1.5 rounded-full transition-opacity duration-200">
+                      View Details
+                    </span>
+                  </div>
+                  <div className="absolute top-2 left-2">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/90 text-gray-800 shadow-xs">{t.category}</span>
+                  </div>
+                  <div className="absolute top-2 right-2">
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shadow-xs ${t.isActive ? 'bg-emerald-500 text-white' : 'bg-gray-400 text-white'}`}>
+                      {t.isActive ? 'Active' : 'Disabled'}
+                    </span>
+                  </div>
                 </div>
-                <div className="absolute top-2 right-2">
-                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ${t.isActive ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                    {t.isActive ? 'Active' : 'Off'}
-                  </span>
+                <div className="p-3 space-y-2">
+                  <p
+                    className="text-xs font-bold text-gray-800 line-clamp-1 cursor-pointer hover:underline"
+                    title={displayTitle}
+                    onClick={() => navigate(`/posters/${t._id}`)}
+                  >
+                    {displayTitle}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => openEdit(t._id)} className="flex-1 text-[10px] font-bold py-1.5 rounded-lg cursor-pointer transition-colors" style={{ color: 'var(--primary)', background: 'var(--primary-light)' }}>Edit</button>
+                    <button onClick={() => handleToggle(t._id, t.isActive)}
+                      className={`flex-1 text-[10px] font-bold py-1.5 rounded-lg cursor-pointer transition-colors ${t.isActive ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
+                      {t.isActive ? 'Disable' : 'Enable'}
+                    </button>
+                    <button onClick={() => handleDelete(t._id)} className="flex-1 text-[10px] font-bold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 rounded-lg cursor-pointer transition-colors">Del</button>
+                  </div>
                 </div>
               </div>
-              <div className="p-3">
-                <p className="text-xs font-bold text-gray-800 truncate">{t.name}</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <button onClick={() => openEdit(t._id)} className="flex-1 text-[10px] font-bold py-1 rounded-lg" style={{ color: 'var(--primary)', background: 'var(--primary-light)' }}>Edit</button>
-                  <button onClick={() => handleToggle(t._id, t.isActive)}
-                    className={`flex-1 text-[10px] font-bold py-1 rounded-lg ${t.isActive ? 'bg-yellow-50 text-yellow-600' : 'bg-green-50 text-green-600'}`}>
-                    {t.isActive ? 'Disable' : 'Enable'}
-                  </button>
-                  <button onClick={() => handleDelete(t._id)} className="flex-1 text-[10px] font-bold text-red-400 bg-red-50 py-1 rounded-lg">Del</button>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
           {templates.length === 0 && (
             <div className="col-span-2 bg-white rounded-2xl p-10 text-center border border-gray-100 flex flex-col items-center">
               <Palette className="w-10 h-10 text-gray-300 mb-2" />
-              <p className="text-sm text-gray-400">No templates yet. Upload one!</p>
+              <p className="text-sm text-gray-400">No templates found. Upload one!</p>
             </div>
           )}
         </div>

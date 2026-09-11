@@ -4,7 +4,7 @@
 //   Auth Header: Authorization: Bearer <token>
 // ============================================================
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
 
 // ── TOKEN & TENANT HELPERS ────────────────────────────────
 const getToken = () => localStorage.getItem('admin_token')
@@ -130,15 +130,57 @@ export const AreasAPI = {
 }
 
 // =============================================================
-// 7. COMPLAINTS
+// 7. COMPLAINTS (100% Backend Integrated)
 // =============================================================
 export const ComplaintsAPI = {
+  // Queries
   getAll: (params = {}) => api('GET', `/complaints?${new URLSearchParams(params)}`),
   getOne: (id) => api('GET', `/complaints/${id}`),
   getStats: () => api('GET', '/complaints/stats'),
+  getAnalytics: () => api('GET', '/complaints/analytics'),
   getMine: () => api('GET', '/complaints/my'),
   create: (data) => api('POST', '/complaints', data),
+
+  // Export CSV / Excel
+  exportComplaints: async (format = 'csv', params = {}) => {
+    const token = getToken()
+    const slug = getTenantSlug()
+    const query = new URLSearchParams({ ...params, format })
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (slug) headers['x-tenant-slug'] = slug
+    const res = await fetch(`${BASE_URL}/complaints/export?${query.toString()}`, { headers })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.message || 'Failed to export complaints')
+    }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `complaints_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'csv'}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  // Actions & Workflow
+  assign: (id, data) => api('PATCH', `/complaints/${id}/assign`, data),
+  updatePriority: (id, priority, note = '') => api('PATCH', `/complaints/${id}/priority`, { priority, note }),
+  addRemark: (id, remark, isInternal = true) => api('POST', `/complaints/${id}/remarks`, { remark, isInternal }),
+  resolve: (id, data) => api('PATCH', `/complaints/${id}/resolve`, data),
+  reject: (id, reason) => api('PATCH', `/complaints/${id}/reject`, { reason }),
+  close: (id, closingNote = '') => api('PATCH', `/complaints/${id}/close`, { closingNote }),
   updateStatus: (id, status, note = '') => api('PATCH', `/complaints/${id}/status`, { status, note }),
+  togglePublic: (id, isPublic) => api('PATCH', `/complaints/${id}/public`, { isPublic }),
+  getPublic: (params = {}) => api('GET', `/complaints/public?${new URLSearchParams(params)}`),
+
+  // Categories Master CRUD
+  getCategories: () => api('GET', '/complaints/categories'),
+  createCategory: (data) => api('POST', '/complaints/categories', data),
+  updateCategory: (catId, data) => api('PATCH', `/complaints/categories/${catId}`, data),
+  deleteCategory: (catId) => api('DELETE', `/complaints/categories/${catId}`),
 }
 
 // =============================================================
@@ -151,6 +193,7 @@ export const WorksAPI = {
   create: (data) => api('POST', '/works', data),
   update: (id, data) => api('PATCH', `/works/${id}`, data),
   remove: (id) => api('DELETE', `/works/${id}`),
+  delete: (id) => api('DELETE', `/works/${id}`),
 }
 
 // =============================================================
@@ -164,6 +207,12 @@ export const EventsAPI = {
   remove: (id) => api('DELETE', `/events/${id}`),
   rsvp: (id, status) => api('POST', `/events/${id}/rsvp`, { status }),
   getMyRsvp: (id) => api('GET', `/events/${id}/my-rsvp`),
+  getAnalytics: (id) => api('GET', `/events/${id}/analytics`),
+  exportAttendees: (id, format = 'csv') => `${BASE_URL}/events/${id}/export?format=${format}`,
+  lookupTicket: (id, ticketNumber) => api('GET', `/events/${id}/check-in/lookup/${ticketNumber}`),
+  checkIn: (id, data) => api('POST', `/events/${id}/check-in`, data),
+  getTicket: (id, userId = '') => api('GET', `/events/${id}/ticket${userId ? `?userId=${userId}` : ''}`),
+  getShareLink: (id) => api('GET', `/events/${id}/share`),
 }
 
 // =============================================================
@@ -296,11 +345,15 @@ export const BannersAPI = {
 export const PosterAPI = {
   // Admin — Template Management
   getTemplates: (category = '') => api('GET', `/poster-generator/templates${category ? '?category=' + category : ''}`),
+  getAdminTemplates: (params = {}) => api('GET', `/poster-generator/templates/admin?${new URLSearchParams(params)}`),
   getCategories: () => api('GET', '/poster-generator/templates/categories'),
   getOneTemplate: (id) => api('GET', `/poster-generator/templates/${id}`),
   createTemplate: (data) => api('POST', '/poster-generator/templates', data),
   updateTemplate: (id, data) => api('PATCH', `/poster-generator/templates/${id}`, data),
   removeTemplate: (id) => api('DELETE', `/poster-generator/templates/${id}`),
+  // Admin — Moderation of Generated Posters
+  getAdminPosters: (params = {}) => api('GET', `/poster-generator/admin/posters?${new URLSearchParams(params)}`),
+  deleteAdminPoster: (id) => api('DELETE', `/poster-generator/admin/posters/${id}`),
   // Citizen
   generatePoster: (templateId, formData) => {
     // formData = FormData object with photo file + fieldValues JSON string
@@ -351,17 +404,24 @@ export const TenantSettingsAPI = {
 // =============================================================
 export const UploadAPI = {
   // module = 'gallery' | 'works' | 'events' | 'banners' | 'misc' | 'branding'
-  uploadFiles: (module, files) => {
+  uploadFiles: async (module, files) => {
     const formData = new FormData()
-    files.forEach(f => formData.append('files', f))
-    const uploadHeaders = { Authorization: `Bearer ${getToken()}` }
+    const fileList = Array.isArray(files) ? files : [files]
+    fileList.forEach(f => formData.append('files', f))
+    const uploadHeaders = {}
+    const token = getToken()
+    if (token) uploadHeaders['Authorization'] = `Bearer ${token}`
     const slug = getTenantSlug()
     if (slug) uploadHeaders['x-tenant-slug'] = slug
-    return fetch(`${BASE_URL}/uploads/${module}`, {
+    const res = await fetch(`${BASE_URL}/uploads/${module}`, {
       method: 'POST',
       headers: uploadHeaders,
       body: formData,
-    }).then(r => r.json())
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.message || 'Upload failed')
+    const urls = json?.data?.urls || json?.urls || []
+    return { urls, ...json }
   }
 }
 

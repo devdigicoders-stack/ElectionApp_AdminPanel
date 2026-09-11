@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { FileEdit, Plus, X } from 'lucide-react'
 import { RegistrationFormAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const FIELD_TYPES = ['text', 'number', 'date', 'select', 'radio', 'checkbox', 'file', 'phone', 'area_selector']
 const EMPTY_FIELD = { key: '', label: '', type: 'text', required: false, options: '' }
@@ -47,7 +48,12 @@ export default function RegistrationPage() {
   }
 
   const handleDeleteField = async (key) => {
-    if (!confirm('Remove this field?')) return
+    const confirmed = await confirmDialog({
+      title: 'Remove Field?',
+      text: 'Are you sure you want to remove this registration field?',
+      confirmButtonText: 'Yes, Remove',
+    })
+    if (!confirmed) return
     try { await RegistrationFormAPI.deleteField(key); show('Field removed!'); load() } catch (e) { show(e.message, 'error') }
   }
 
@@ -65,7 +71,12 @@ export default function RegistrationPage() {
   }
 
   const handleReset = async () => {
-    if (!confirm('Reset registration form to default fields?')) return
+    const confirmed = await confirmDialog({
+      title: 'Reset to Default Fields?',
+      text: 'Are you sure you want to reset the registration form to default fields?',
+      confirmButtonText: 'Yes, Reset',
+    })
+    if (!confirmed) return
     try { await RegistrationFormAPI.resetDefault(); show('Reset to default!'); load() } catch (e) { show(e.message, 'error') }
   }
 

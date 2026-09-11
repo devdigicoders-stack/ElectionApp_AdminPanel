@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import { BrandingProvider } from './context/BrandingContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './layouts/AdminLayout'
@@ -21,6 +23,7 @@ import VolunteersPage from './pages/volunteers/VolunteersPage'
 import GalleryPage from './pages/gallery/GalleryPage'
 import ManifestoPage from './pages/manifesto/ManifestoPage'
 import PostersPage from './pages/posters/PostersPage'
+import PosterDetailPage from './pages/posters/PosterDetailPage'
 import NotificationsPage from './pages/notifications/NotificationsPage'
 import RolesPage from './pages/roles/RolesPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
@@ -66,6 +69,7 @@ function AppRoutes() {
         <Route path="gallery" element={<GalleryPage />} />
         <Route path="manifesto" element={<ManifestoPage />} />
         <Route path="posters" element={<PostersPage />} />
+        <Route path="posters/:id" element={<PosterDetailPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
@@ -94,6 +98,7 @@ export default function App() {
   return (
     <BrandingProvider>
       <BrowserRouter>
+        <ToastContainer position="top-center" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="colored" />
         <AppRoutes />
       </BrowserRouter>
     </BrandingProvider>

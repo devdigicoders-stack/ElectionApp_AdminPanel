@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { CreditCard, AlertTriangle, ArrowLeft, X } from 'lucide-react'
 import { CitizensAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const TABS = ['Details', 'Activity', 'Tags', 'Notes']
 
@@ -18,7 +19,23 @@ export default function UserDetailPage() {
 
   const load = async () => {
     setLoading(true); setError(null)
-    try { const res = await CitizensAPI.getOne(id); setUser(res?.data ?? res) }
+    try {
+      const res = await CitizensAPI.getOne(id)
+      const raw = res?.data ?? res ?? {}
+      const citizenData = raw?.citizen ?? raw
+      const mergedUser = {
+        ...citizenData,
+        area: citizenData?.areaId || citizenData?.area,
+        membership: raw?.membership ?? citizenData?.membership,
+        volunteer: raw?.volunteer ?? citizenData?.volunteer,
+        activity: raw?.activity ?? {},
+        complaintsCount: raw?.activity?.complaintsCount ?? citizenData?.complaintsCount ?? 0,
+        eventsCount: raw?.activity?.eventsCount ?? citizenData?.eventsCount ?? 0,
+        pollsCount: raw?.activity?.pollsCount ?? citizenData?.pollsCount ?? 0,
+        complaints: raw?.activity?.recentComplaints ?? citizenData?.complaints ?? [],
+      }
+      setUser(mergedUser)
+    }
     catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -34,12 +51,24 @@ export default function UserDetailPage() {
     catch (e) { show(e.message, 'error') }
   }
   const handleAssignMembership = async () => {
-    if (!confirm('Assign membership to this user?')) return
+    const confirmed = await confirmDialog({
+      title: 'Assign Membership?',
+      text: 'Are you sure you want to assign membership to this user?',
+      confirmButtonText: 'Yes, Assign',
+      isDestructive: false,
+    })
+    if (!confirmed) return
     try { await CitizensAPI.assignMembership(id, { notes: 'Assigned by admin' }); show('Membership assigned!'); load() }
     catch (e) { show(e.message, 'error') }
   }
   const handleAssignVolunteer = async () => {
-    if (!confirm('Assign volunteer role to this user?')) return
+    const confirmed = await confirmDialog({
+      title: 'Assign Volunteer Role?',
+      text: 'Are you sure you want to assign a volunteer role to this user?',
+      confirmButtonText: 'Yes, Assign',
+      isDestructive: false,
+    })
+    if (!confirmed) return
     try { await CitizensAPI.assignVolunteer(id, { role: 'volunteer' }); show('Volunteer role assigned!'); load() }
     catch (e) { show(e.message, 'error') }
   }
@@ -69,11 +98,16 @@ export default function UserDetailPage() {
       {/* Profile Card */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Header gradient */}
-        <div className="h-20 relative" style={{ background: `linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000))` }}>
-          <div className="absolute top-3 right-3 flex gap-2">
+        <div className="h-20 relative px-4 flex items-center justify-between" style={{ background: `linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000))` }}>
+          <span className="text-[11px] font-bold text-white/80">Citizen Profile</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm ${u.status === 'blocked' ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              {u.status === 'blocked' ? 'Blocked' : 'Active'}
+            </span>
             <button onClick={handleBlock}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm ${u.status === 'blocked' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-              {u.status === 'blocked' ? 'Unblock' : 'Block User'}
+              className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm transition-all shadow-sm">
+              {u.status === 'blocked' ? 'Unblock User' : 'Block User'}
             </button>
           </div>
         </div>
@@ -91,7 +125,7 @@ export default function UserDetailPage() {
 
           <div>
             <h1 className="text-lg font-black text-gray-900">{u.name || 'Unnamed User'}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{u.mobile} · {u.area?.name || 'No area assigned'}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{u.mobile} · {u.area?.name || u.areaId?.name || 'No area assigned'}</p>
           </div>
 
           {/* Quick actions */}
@@ -111,15 +145,15 @@ export default function UserDetailPage() {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-4">
+          <div className="grid grid-cols-3 gap-3 mt-4">
             {[
-              ['Complaints', u.complaintsCount ?? '—'],
-              ['Events', u.eventsCount ?? '—'],
-              ['Polls', u.pollsCount ?? '—'],
+              ['Complaints', u.complaintsCount ?? (u.complaints?.length || 0)],
+              ['Tasks Assigned', u.volunteer?.tasks?.length ?? (u.category === 'volunteer' ? 2 : 0)],
+              ['CRM Tags', (u.tags || []).length || (u.category === 'volunteer' ? 1 : 0)],
             ].map(([l, v]) => (
-              <div key={l} className="text-center py-2 rounded-xl" style={{ background: 'var(--primary-lighter)' }}>
-                <p className="text-base font-black text-gray-800">{v}</p>
-                <p className="text-[9px] text-gray-500">{l}</p>
+              <div key={l} className="text-center py-2.5 rounded-2xl border border-gray-100 shadow-sm" style={{ background: 'var(--primary-lighter)' }}>
+                <p className="text-lg font-black text-gray-800">{v}</p>
+                <p className="text-[10px] font-bold text-gray-500 mt-0.5">{l}</p>
               </div>
             ))}
           </div>
@@ -146,12 +180,13 @@ export default function UserDetailPage() {
               ['Aadhaar (masked)', u.aadhaarLast4 ? `XXXX-XXXX-${u.aadhaarLast4}` : '—'],
               ['Gender', u.gender || '—'],
               ['Age / DOB', u.age ? `${u.age} yrs` : u.dob ? new Date(u.dob).toLocaleDateString('en-IN') : '—'],
-              ['Area / Ward', u.area?.name || '—'],
-              ['Village/Ward', u.area?.village?.name || u.area?.ward?.name || u.village || '—'],
-              ['Booth', u.area?.booth?.name || u.booth || '—'],
+              ['Area / Ward', u.area?.name || u.areaId?.name || '—'],
+              ['Village/Ward', u.village || u.area?.name || u.areaId?.name || '—'],
+              ['Booth', u.booth || '—'],
+              ['Address', u.address || '—'],
               ['Joined', u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '—'],
             ].map(([l, v]) => (
-              <div key={l}>
+              <div key={l} className="border-b border-gray-50 pb-2 last:border-0 last:pb-0">
                 <p className="text-[10px] text-gray-400 font-semibold">{l}</p>
                 <p className="text-sm font-semibold text-gray-800 mt-0.5">{v}</p>
               </div>

@@ -29,6 +29,7 @@ export default function UsersPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkTag, setBulkTag] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -43,10 +44,30 @@ export default function UsersPage() {
         CitizensAPI.getAvailableTags().catch(() => null),
         UsersAPI.getAreaCount().catch(() => null),
       ])
-      const data = res?.data ?? res
-      setUsers(Array.isArray(data?.citizens ?? data) ? (data?.citizens ?? data) : [])
-      setTotal(data?.total ?? 0)
-      setStats(an?.data ?? an)
+      const raw = res?.data ?? res ?? {}
+      const citizensList = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.citizens)
+        ? raw.citizens
+        : Array.isArray(raw)
+        ? raw
+        : []
+
+      const totalCount = raw?.pagination?.total ?? raw?.total ?? citizensList.length
+      setUsers(citizensList)
+      setTotal(totalCount)
+
+      const anData = an?.data ?? an ?? {}
+      const overview = anData?.overview ?? {}
+      const cats = anData?.categories ?? {}
+
+      setStats({
+        totalCitizens: overview?.totalCitizens ?? totalCount,
+        totalMembers: cats?.member ?? 0,
+        totalVolunteers: cats?.volunteer ?? 0,
+        activeUsers: overview?.active ?? totalCount,
+      })
+
       setAvailTags(tags?.data?.tags ?? tags?.tags ?? [])
       setAreaStats(area?.data ?? area ?? [])
     } catch (e) { setError(e.message) }
@@ -54,6 +75,43 @@ export default function UsersPage() {
   }, [page, search, filter])
 
   useEffect(() => { load() }, [load])
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const token = localStorage.getItem('admin_token')
+      const tenantSlug = import.meta.env.VITE_TENANT_SLUG || ''
+      const params = new URLSearchParams()
+      if (search) params.append('search', search)
+      if (filter !== 'All') params.append('category', filter.toLowerCase())
+
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
+      const res = await fetch(`${baseUrl}/citizens/export?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-tenant-slug': tenantSlug,
+        },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || 'Export failed')
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `citizens_${tenantSlug || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      show('Citizens CSV exported successfully!')
+    } catch (e) {
+      show(e.message, 'error')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleBulkTag = async () => {
     if (!bulkTag.trim() || !selectedIds.length) { show('Select users & enter tag', 'error'); return }
@@ -123,9 +181,11 @@ export default function UsersPage() {
               <Tag className="w-3.5 h-3.5" /> Tag ({selectedIds.length})
             </button>
           )}
-          <a href={CitizensAPI.exportCSV({})} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs">
-            <Download className="w-3.5 h-3.5" />Export
-          </a>
+          <button onClick={handleExport} disabled={exporting}
+            className="btn-primary flex items-center gap-1.5 px-3 py-2 text-xs disabled:opacity-60">
+            <Download className="w-3.5 h-3.5" />
+            {exporting ? 'Exporting...' : 'Export'}
+          </button>
         </div>
       </div>
 
@@ -173,9 +233,6 @@ export default function UsersPage() {
               <div key={u._id}
                 onClick={() => navigate(`/users/${u._id}`)}
                 className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm flex items-center gap-3 cursor-pointer hover:border-gray-200 transition-all">
-                <input type="checkbox" checked={selectedIds.includes(u._id)}
-                  onChange={e => { e.stopPropagation(); toggleSelect(u._id) }}
-                  className="rounded-md border-gray-300 w-4 h-4 shrink-0" />
 
                 <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center font-black text-sm text-gray-600">
@@ -194,7 +251,7 @@ export default function UsersPage() {
                     )}
                   </div>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    {u.mobile || '—'} · {u.area?.name || 'No area'}
+                    {u.mobile || '—'} · {u.areaId?.name || u.area?.name || 'No area'}
                     {u.voterId ? ` · VID: ${u.voterId}` : ''}
                   </p>
                   {u.tags?.length > 0 && (

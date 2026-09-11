@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { MapPin, ChevronRight, Plus, X } from 'lucide-react'
 import { AreasAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import Swal, { confirmDialog } from '../../utils/sweetAlert'
 
 function TreeNode({ node, depth = 0, onAdd, onEdit }) {
   const [open, setOpen] = useState(depth < 2)
@@ -74,12 +75,31 @@ export default function AreasPage() {
   }
 
   const handleDeleteLevel = async (id) => {
-    if (!confirm('Delete level?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Area Level?',
+      text: 'Are you sure you want to delete this area level?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await AreasAPI.deleteLevel(id); show('Level deleted!'); load() } catch (e) { show(e.message, 'error') }
   }
 
   const handleEditLevel = async (id, currentName) => {
-    const name = prompt('New name:', currentName)
+    const { value: name } = await Swal.fire({
+      title: 'Edit Area Level Name',
+      input: 'text',
+      inputValue: currentName,
+      showCancelButton: true,
+      confirmButtonText: 'Save',
+      confirmButtonColor: 'var(--primary)',
+      customClass: {
+        popup: 'rounded-3xl p-5 shadow-2xl font-sans border border-gray-100',
+        title: 'text-base font-bold text-gray-900',
+        input: 'rounded-xl text-xs font-semibold',
+        confirmButton: 'rounded-xl font-bold px-4 py-2 text-xs shadow-xs',
+        cancelButton: 'rounded-xl font-bold px-4 py-2 text-xs shadow-xs',
+      },
+    })
     if (!name?.trim()) return
     try { await AreasAPI.updateLevel(id, { name: name.trim() }); show('Updated!'); load() } catch (e) { show(e.message, 'error') }
   }

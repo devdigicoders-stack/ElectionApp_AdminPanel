@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { NewsAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
+import { confirmDialog } from '../../utils/sweetAlert'
 
 const statusColor = {
   published: 'bg-green-100 text-green-700',
@@ -43,7 +44,12 @@ export default function NewsDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!confirm('Delete this article?')) return
+    const confirmed = await confirmDialog({
+      title: 'Delete Article?',
+      text: 'Are you sure you want to delete this article?',
+      confirmButtonText: 'Yes, Delete',
+    })
+    if (!confirmed) return
     try { await NewsAPI.remove(id); show('Deleted!'); navigate('/news') }
     catch(e) { show(e.message,'error') }
   }
