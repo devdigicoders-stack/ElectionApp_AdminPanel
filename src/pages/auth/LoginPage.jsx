@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AuthAPI } from '../../api/adminApis'
-import { useBranding } from '../../context/BrandingContext'
+import { useBranding, resolveBrandingUrl } from '../../context/BrandingContext'
 
 function PartySymbolIcon() {
   return (
@@ -76,12 +76,15 @@ export default function LoginPage() {
         {/* Top Hero Banner with Leader Photo from public/image.png */}
         <div className="relative w-full h-64 sm:h-72 overflow-hidden bg-slate-900">
           <img
-            src="/image.png"
+            src={resolveBrandingUrl(branding?.loginBgUrl) || '/image.png'}
             alt="Leader"
             className="w-full h-full object-cover object-top block"
             onError={(e) => {
-              // Fallback background if image is loading
-              e.currentTarget.style.opacity = '0.7'
+              if (e.currentTarget.src !== '/image.png') {
+                e.currentTarget.src = '/image.png'
+              } else {
+                e.currentTarget.style.opacity = '0.7'
+              }
             }}
           />
           {/* Subtle top shade & Bottom seamless white gradient blend */}
@@ -95,15 +98,24 @@ export default function LoginPage() {
             className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white shadow-xl flex items-center justify-center p-1 ring-4 ring-white/80"
             style={{ border: '2.5px solid var(--secondary)' }}
           >
-            {branding?.logoUrl ? (
+            {resolveBrandingUrl(branding?.logoUrl) ? (
               <img
-                src={branding.logoUrl}
+                src={resolveBrandingUrl(branding?.logoUrl)}
                 alt="Logo"
                 className="w-full h-full object-contain rounded-full"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.parentElement?.querySelector('.login-symbol-fallback');
+                  if (fallback) fallback.style.display = 'block';
+                }}
               />
-            ) : (
+            ) : null}
+            <div
+              className="login-symbol-fallback"
+              style={{ display: resolveBrandingUrl(branding?.logoUrl) ? 'none' : 'block' }}
+            >
               <PartySymbolIcon />
-            )}
+            </div>
           </div>
         </div>
 

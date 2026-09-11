@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useBranding } from '../context/BrandingContext'
+import { useBranding, resolveBrandingUrl } from '../context/BrandingContext'
 
 export default function SplashScreen({ onDone }) {
   const { branding, loading } = useBranding()
@@ -18,15 +18,26 @@ export default function SplashScreen({ onDone }) {
     >
       {/* Logo */}
       <div className="flex flex-col items-center gap-4 animate-pulse">
-        {branding?.logoUrl ? (
-          <img src={branding.logoUrl} alt="Logo" className="w-24 h-24 rounded-3xl object-contain bg-white/20 p-2 shadow-2xl" />
-        ) : (
-          <div className="w-24 h-24 rounded-3xl bg-white/20 flex items-center justify-center shadow-2xl backdrop-blur-sm">
-            <span className="text-white text-3xl font-black">
-              {(branding?.leaderName || 'LA')[0]}
-            </span>
-          </div>
-        )}
+        {resolveBrandingUrl(branding?.logoUrl) ? (
+          <img
+            src={resolveBrandingUrl(branding?.logoUrl)}
+            alt="Logo"
+            className="w-24 h-24 rounded-3xl object-contain bg-white/20 p-2 shadow-2xl"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fallback = e.currentTarget.parentElement?.querySelector('.splash-logo-fallback');
+              if (fallback) fallback.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <div
+          className="splash-logo-fallback w-24 h-24 rounded-3xl bg-white/20 items-center justify-center shadow-2xl backdrop-blur-sm"
+          style={{ display: resolveBrandingUrl(branding?.logoUrl) ? 'none' : 'flex' }}
+        >
+          <span className="text-white text-3xl font-black">
+            {(branding?.leaderName || 'LA')[0]}
+          </span>
+        </div>
 
         {/* App Name */}
         <div className="text-center">

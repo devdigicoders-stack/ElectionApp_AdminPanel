@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { BrandingProvider } from './context/BrandingContext'
+import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './layouts/AdminLayout'
 import SplashScreen from './pages/SplashScreen'
@@ -29,7 +30,6 @@ import RolesPage from './pages/roles/RolesPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import RegistrationPage from './pages/registration/RegistrationPage'
-import AuditPage from './pages/audit/AuditPage'
 import NewsPage from './pages/news/NewsPage'
 import NewsDetailPage from './pages/news/NewsDetailPage'
 import BannersPage from './pages/banners/BannersPage'
@@ -59,6 +59,7 @@ function AppRoutes() {
         <Route path="areas" element={<AreasPage />} />
         <Route path="homepage" element={<HomepagePage />} />
         <Route path="leader-profile" element={<LeaderProfilePage />} />
+        <Route path="profile" element={<LeaderProfilePage />} />
         <Route path="works" element={<WorksPage />} />
         <Route path="complaints" element={<ComplaintsPage />} />
         <Route path="complaints/:id" element={<ComplaintDetailPage />} />
@@ -75,7 +76,6 @@ function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="registration" element={<RegistrationPage />} />
-        <Route path="audit" element={<AuditPage />} />
         <Route path="news" element={<NewsPage />} />
         <Route path="banners" element={<BannersPage />} />
         <Route path="staff" element={<AdminUsersPage />} />
@@ -96,11 +96,13 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrandingProvider>
-      <BrowserRouter>
-        <ToastContainer position="top-center" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="colored" />
-        <AppRoutes />
-      </BrowserRouter>
-    </BrandingProvider>
+    <LanguageProvider>
+      <BrandingProvider>
+        <BrowserRouter>
+          <ToastContainer position="top-center" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick pauseOnHover theme="colored" />
+          <AppRoutes />
+        </BrowserRouter>
+      </BrandingProvider>
+    </LanguageProvider>
   )
 }

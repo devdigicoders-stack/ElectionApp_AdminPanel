@@ -8,5 +8,11 @@ export default defineConfig({
   server: {
     host: true,   // network pe expose karo (same WiFi)
     port: 5175,   // fixed port
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   }
 })

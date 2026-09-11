@@ -14,7 +14,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { DashboardAPI, ComplaintsAPI, PollsAPI } from '../../api/adminApis'
-import { useBranding } from '../../context/BrandingContext'
+import { useBranding, resolveBrandingUrl } from '../../context/BrandingContext'
 import { Skeleton, ApiError } from '../../hooks/useFetch.jsx'
 
 const statusColor = {
@@ -138,10 +138,26 @@ export default function DashboardPage() {
         <div className="relative flex items-center gap-4">
           {/* Leader photo / avatar */}
           <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 overflow-hidden border-2 border-white/30">
-            {branding?.logoUrl
-              ? <img src={branding.logoUrl} alt="Leader" className="w-full h-full object-cover" />
-              : <span className="text-white text-2xl font-black">{(branding?.leaderName || user.name || 'A')[0]}</span>
-            }
+            {resolveBrandingUrl(branding?.leaderPhotoUrl || branding?.logoUrl) ? (
+              <img
+                src={resolveBrandingUrl(branding?.leaderPhotoUrl || branding?.logoUrl)}
+                alt="Leader"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.parentElement?.querySelector('.leader-avatar-fallback');
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <span
+              className="leader-avatar-fallback text-white text-2xl font-black items-center justify-center"
+              style={{
+                display: resolveBrandingUrl(branding?.leaderPhotoUrl || branding?.logoUrl) ? 'none' : 'flex'
+              }}
+            >
+              {(branding?.leaderName || user?.name || 'A')[0]}
+            </span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white/70 text-xs font-semibold">Good Morning,</p>

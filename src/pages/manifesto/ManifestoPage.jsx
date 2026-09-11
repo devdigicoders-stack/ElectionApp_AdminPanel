@@ -62,7 +62,7 @@ export default function ManifestoPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-28 sm:pb-12">
       <Toast />
       <div className="flex items-center justify-between">
         <div>

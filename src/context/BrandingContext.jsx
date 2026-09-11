@@ -1,7 +1,37 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { ConfigAPI } from '../api/adminApis'
+import { ConfigAPI, BASE_URL } from '../api/adminApis'
 
 const BrandingContext = createContext(null)
+
+export const resolveBrandingUrl = (url) => {
+  if (!url || typeof url !== 'string' || !url.trim()) return null
+  const trimmed = url.trim()
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed
+  }
+  const cleanBase = (BASE_URL || '').replace(/\/+$/, '')
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  return `${cleanBase}${cleanPath}`
+}
+
+export const normalizeBranding = (b) => {
+  if (!b) return b
+  const logo = resolveBrandingUrl(b.logoUrl || b.logo)
+  return {
+    ...b,
+    logoUrl: logo,
+    logo: logo,
+    leaderPhotoUrl: resolveBrandingUrl(b.leaderPhotoUrl),
+    faviconUrl: resolveBrandingUrl(b.faviconUrl),
+    pwaIconUrl: resolveBrandingUrl(b.pwaIconUrl),
+    loginBgUrl: resolveBrandingUrl(b.loginBgUrl),
+  }
+}
 
 // Default fallback branding
 const DEFAULT_BRANDING = {
@@ -71,7 +101,7 @@ export function BrandingProvider({ children }) {
     try {
       const cached = localStorage.getItem('app_branding')
       if (cached) {
-        const parsed = JSON.parse(cached)
+        const parsed = normalizeBranding(JSON.parse(cached))
         applyTheme(parsed)
         return parsed
       }
@@ -106,7 +136,8 @@ export function BrandingProvider({ children }) {
     try {
       const res    = await ConfigAPI.getConfig()
       const data   = res?.data ?? res
-      const brand  = { ...DEFAULT_BRANDING, ...(data?.branding || {}) }
+      const rawBrand = { ...DEFAULT_BRANDING, ...(data?.branding || {}) }
+      const brand  = normalizeBranding(rawBrand)
 
       setBranding(brand)
       setTenant(data?.tenant || null)
@@ -123,7 +154,7 @@ export function BrandingProvider({ children }) {
       // Use cached branding if API fails
       const cached = localStorage.getItem('app_branding')
       if (cached) {
-        const brand = JSON.parse(cached)
+        const brand = normalizeBranding(JSON.parse(cached))
         setBranding(brand)
         applyTheme(brand)
       } else {
