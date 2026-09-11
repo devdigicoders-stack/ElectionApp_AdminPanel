@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Bell,
+  BellRing,
   Send,
   Trash2,
   Plus,
@@ -9,16 +10,24 @@ import {
   Star,
   CreditCard,
   MapPin,
+  CheckCircle2,
   Smartphone,
+  Inbox,
+  Radio,
   Clock,
   Search,
+  Sparkles,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react'
 import { NotificationsAPI, AreasAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
 import { confirmDialog } from '../../utils/sweetAlert'
 import { requestNotificationPermission } from '../../firebase'
+import { useBranding, resolveBrandingUrl } from '../../context/BrandingContext'
+
 export default function NotificationsPage() {
+  const { branding } = useBranding()
   const { show, Toast } = useToast()
   const [history, setHistory] = useState([])
   const [areas, setAreas] = useState([])
@@ -127,12 +136,86 @@ export default function NotificationsPage() {
     }
   }
 
-  // Auto-sync FCM token on load if permission is already granted
+  // Web Push FCM status state
+  const [fcmStatus, setFcmStatus] = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+    return Notification.permission // 'default' | 'granted' | 'denied'
+  })
+  const [fcmLoading, setFcmLoading] = useState(false)
+  const [testPushing, setTestPushing] = useState(false)
+
+  // Request & register FCM token
+  const handleEnablePush = async () => {
+    setFcmLoading(true)
+    try {
+      const res = await requestNotificationPermission()
+      if (res?.success) {
+        setFcmStatus('granted')
+        show('Web Push Notifications active! This device will receive push alerts.')
+      } else if (res?.reason === 'denied') {
+        setFcmStatus('denied')
+        show('Notification permission was blocked in browser settings.', 'error')
+      } else {
+        show('Could not enable push: ' + (res?.reason || 'Unknown error'), 'error')
+      }
+    } catch (err) {
+      show(err.message || 'Failed to enable push notifications', 'error')
+    } finally {
+      setFcmLoading(false)
+    }
+  }
+
+  // Auto-sync token on load if permission is already granted
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      requestNotificationPermission().catch(() => {})
+      requestNotificationPermission()
+        .then((res) => {
+          if (res?.success) setFcmStatus('granted')
+        })
+        .catch(() => {})
     }
   }, [])
+
+  // Send a quick test push to verify FCM delivery
+  const handleTestSelfPush = async () => {
+    setTestPushing(true)
+    try {
+      // 1. Ensure token is generated and registered
+      let token = localStorage.getItem('fcm_token')
+      if (!token) {
+        const permRes = await requestNotificationPermission()
+        if (permRes?.token) token = permRes.token
+      }
+
+      // 2. Dispatch FCM Push via backend
+      const testRes = await NotificationsAPI.testPush(token).catch(() => null)
+
+      // 3. Pop native browser / OS notification for instant feedback with real logo
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const appLogo = resolveBrandingUrl(branding?.logoUrl || branding?.logo) || '/logo.png'
+          new Notification('🔔 Test Web Push Alert', {
+            body: 'FCM Push notification system is working 100% live on your Admin Panel!',
+            icon: appLogo,
+            badge: appLogo,
+          })
+        } catch (e) {
+          console.warn('Native notification alert:', e)
+        }
+      }
+
+      if (testRes?.success || testRes?.data?.success) {
+        show('Test push dispatched via FCM! Alert triggered on your device.')
+      } else {
+        show('Test push triggered! Check your desktop/browser notification.')
+      }
+      await load()
+    } catch (err) {
+      show(err.message || 'Failed to send test push', 'error')
+    } finally {
+      setTestPushing(false)
+    }
+  }
 
   // Handle Delete Notification
   const handleDelete = async (id, notifTitle) => {
@@ -197,6 +280,98 @@ export default function NotificationsPage() {
           <span>Send Notification</span>
         </button>
       </div>
+
+      {/* ── FCM PUSH NOTIFICATION STATUS BANNER ── */}
+      {fcmStatus === 'granted' ? (
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50/70 border border-emerald-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/20">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-emerald-950">
+                  Web Push Alerts Active
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live FCM Connected
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                This browser will receive real-time push alerts even when the tab is in the background.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+            <button
+              onClick={handleTestSelfPush}
+              disabled={testPushing}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              {testPushing ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />
+                  <span>Sending Test...</span>
+                </>
+              ) : (
+                <>
+                  <BellRing className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Send Test Push</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      ) : fcmStatus === 'denied' ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs sm:text-sm font-bold text-amber-950">
+              Push Notifications Blocked in Browser
+            </p>
+            <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+              Notifications were denied in your browser settings. To receive live alerts, click the lock icon 🔒 next to the URL address bar and set Notifications to &ldquo;Allow&rdquo;.
+            </p>
+          </div>
+        </div>
+      ) : fcmStatus !== 'unsupported' ? (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-blue-600/20">
+              <BellRing className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-gray-900">
+                Enable Web Push Alerts on this Device
+              </p>
+              <p className="text-[11px] text-gray-600 font-medium mt-0.5">
+                Receive instant push notifications when broadcasts are sent or citizens submit complaints.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleEnablePush}
+            disabled={fcmLoading}
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-60 shrink-0"
+            style={{ background: 'var(--primary)' }}
+          >
+            {fcmLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Enabling...</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                <span>Enable Push Alerts</span>
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
 
       {/* ── SEARCH & FILTER CHIPS ── */}
       <div className="space-y-2.5">
