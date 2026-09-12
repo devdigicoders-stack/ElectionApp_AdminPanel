@@ -96,13 +96,13 @@ export default function PostersPage() {
 
   // ── SAMPLE FRAME DOWNLOAD HELPER ───────────────────────────
   const handleDownloadSample = async (preset = '1080x1080') => {
-    let samplePath = '/uploads/chaurasiya/poster-templates/festival_greeting_base.png'
-    let filename = `sample_frame_${preset}.png`
+    let samplePath = '/uploads/chaurasiya/poster-templates/sample_festival_political_poster.jpg'
+    let filename = `sample_festival_political_poster_${preset}.jpg`
 
     if (preset === '1080x1350') {
-      samplePath = '/uploads/chaurasiya/poster-templates/campaign_feed_base.png'
+      samplePath = '/uploads/chaurasiya/poster-templates/sample_festival_political_poster.jpg'
     } else if (preset === '1080x1920') {
-      samplePath = '/uploads/chaurasiya/poster-templates/national_day_story_base.png'
+      samplePath = '/uploads/chaurasiya/poster-templates/sample_festival_political_poster.jpg'
     }
 
     try {
