@@ -17,6 +17,7 @@ import {
   User,
   Phone,
   Calendar,
+  Info,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PosterAPI, UploadAPI, BASE_URL } from '../../api/adminApis'
@@ -91,6 +92,64 @@ export default function PostersPage() {
     if (!url) return ''
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url
     return `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+  }
+
+  // ── SAMPLE FRAME DOWNLOAD HELPER ───────────────────────────
+  const handleDownloadSample = async (preset = '1080x1080') => {
+    let samplePath = '/uploads/chaurasiya/poster-templates/festival_greeting_base.png'
+    let filename = `sample_frame_${preset}.png`
+
+    if (preset === '1080x1350') {
+      samplePath = '/uploads/chaurasiya/poster-templates/campaign_feed_base.png'
+    } else if (preset === '1080x1920') {
+      samplePath = '/uploads/chaurasiya/poster-templates/national_day_story_base.png'
+    }
+
+    try {
+      const fullUrl = resolveUrl(samplePath)
+      const res = await fetch(fullUrl)
+      if (!res.ok) throw new Error('Fetch failed')
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(blobUrl)
+      show(`Sample frame (${preset}) downloaded successfully!`)
+    } catch {
+      window.open(resolveUrl(samplePath), '_blank')
+    }
+  }
+
+  const handleDownloadTemplateFrame = async (t) => {
+    const rawUrl = t.templateImageUrl || t.imageUrl
+    if (!rawUrl) {
+      show('No image frame available for this template', 'error')
+      return
+    }
+    const fullUrl = resolveUrl(rawUrl)
+    const ext = rawUrl.split('.').pop() || 'png'
+    const cleanTitle = (t.title || t.name || 'template').toLowerCase().replace(/[^a-z0-9]/g, '_')
+    const filename = `${cleanTitle}_frame.${ext}`
+
+    try {
+      const res = await fetch(fullUrl)
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(blobUrl)
+      show('Frame downloaded!')
+    } catch {
+      window.open(fullUrl, '_blank')
+    }
   }
 
   // ── LOAD TEMPLATES ──────────────────────────────────────────
@@ -310,7 +369,15 @@ export default function PostersPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleDownloadSample('1080x1080')}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl border border-gray-200 shadow-2xs transition-all cursor-pointer"
+            title="Download reference sample frame to see layout and dimensions"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>Sample Frame</span>
+          </button>
           <button
             onClick={() => {
               if (activeTab === 'templates') loadTemplates()
@@ -550,6 +617,14 @@ export default function PostersPage() {
                         </button>
 
                         <button
+                          onClick={() => handleDownloadTemplateFrame(t)}
+                          className="p-2 text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                          title="Download Frame Image"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
+                        <button
                           onClick={() => handleDeleteTemplate(t._id)}
                           className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-colors cursor-pointer"
                           title="Delete Template"
@@ -783,6 +858,43 @@ export default function PostersPage() {
                       </div>
                     )}
                   </label>
+                </div>
+              </div>
+
+              {/* Sample Reference Guidance Box */}
+              <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>नमूना फ्रेम डाउनलोड करें (Sample Reference Frame)</span>
+                </div>
+                <p className="text-[11px] text-blue-700/90 leading-snug">
+                  देखना चाहते हैं कि कैसा फ्रेम इमेज तैयार करके डालना है? नीचे से अपनी पसंद के साइज़ का सैंपल डाउनलोड करके चेक करें:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSample('1080x1080')}
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>1:1 Square (1080x1080)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSample('1080x1350')}
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>4:5 Portrait (1080x1350)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSample('1080x1920')}
+                    className="px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>9:16 Story (1080x1920)</span>
+                  </button>
                 </div>
               </div>
 
