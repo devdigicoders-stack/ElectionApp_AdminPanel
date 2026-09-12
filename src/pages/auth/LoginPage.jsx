@@ -246,6 +246,16 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Compliance & Security Footer */}
+          <div className="mt-5 pt-3 border-t border-slate-100 text-center">
+            <p className="text-[11px] font-medium text-slate-400 leading-relaxed">
+              Private Campaign Management Portal
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Authorized personnel only • Not affiliated with any Government Election Authority
+            </p>
+          </div>
         </div>
 
       </div>
