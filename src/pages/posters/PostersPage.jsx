@@ -212,11 +212,13 @@ export default function PostersPage() {
     if (!confirmed) return
 
     try {
+      setTemplates((prev) => prev.filter((t) => t._id !== id))
       await PosterAPI.removeTemplate(id)
       show('Template deleted successfully!')
       loadTemplates()
     } catch (e) {
       show(e.message, 'error')
+      loadTemplates()
     }
   }
 
@@ -247,11 +249,15 @@ export default function PostersPage() {
   // ── TOGGLE TEMPLATE ACTIVE STATUS ───────────────────────────
   const handleToggle = async (id, current) => {
     try {
+      setTemplates((prev) =>
+        prev.map((t) => (t._id === id ? { ...t, isActive: !current } : t))
+      )
       await PosterAPI.updateTemplate(id, { isActive: !current })
       show(!current ? 'Template Activated!' : 'Template Deactivated!')
       loadTemplates()
     } catch (e) {
       show(e.message, 'error')
+      loadTemplates()
     }
   }
 
@@ -265,11 +271,13 @@ export default function PostersPage() {
     if (!confirmed) return
 
     try {
+      setGenPosters((prev) => prev.filter((p) => p._id !== id))
       await PosterAPI.deleteAdminPoster(id)
       show('Poster removed!')
       loadGeneratedPosters()
     } catch (e) {
       show(e.message, 'error')
+      loadGeneratedPosters()
     }
   }
 
