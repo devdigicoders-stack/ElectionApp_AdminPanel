@@ -11,7 +11,8 @@ import {
   BarChart3,
   HardHat,
   Bell,
-  ChevronRight
+  ChevronRight,
+  Newspaper
 } from 'lucide-react'
 import { DashboardAPI, ComplaintsAPI, PollsAPI } from '../../api/adminApis'
 import { useBranding, resolveBrandingUrl } from '../../context/BrandingContext'
@@ -192,17 +193,18 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <h3 className="text-sm font-bold text-gray-800 mb-3">Quick Actions</h3>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-2">
           {[
             { icon: <AlertTriangle className="w-5 h-5 text-red-500" />, label: 'Complaint', path: '/complaints', color: 'bg-red-50' },
             { icon: <HardHat className="w-5 h-5 text-blue-600" />, label: 'Work', path: '/works', color: 'bg-blue-50' },
+            { icon: <Newspaper className="w-5 h-5 text-amber-600" />, label: 'Blog / News', path: '/news', color: 'bg-amber-50' },
             { icon: <Calendar className="w-5 h-5 text-emerald-600" />, label: 'Event', path: '/events', color: 'bg-green-50' },
-            { icon: <BarChart3 className="w-5 h-5 text-purple-600" />, label: 'Create Poll', path: '/polls', color: 'bg-purple-50' },
+            { icon: <BarChart3 className="w-5 h-5 text-purple-600" />, label: 'Poll', path: '/polls', color: 'bg-purple-50' },
           ].map(a => (
             <button key={a.label} onClick={() => navigate(a.path)}
-              className={`${a.color} rounded-2xl p-3 flex flex-col items-center gap-1.5 active:scale-95 transition-transform`}>
+              className={`${a.color} rounded-2xl p-2.5 flex flex-col items-center gap-1 active:scale-95 transition-transform cursor-pointer`}>
               <span className="flex items-center justify-center">{a.icon}</span>
-              <span className="text-[9px] font-bold text-gray-600 text-center leading-tight">{a.label}</span>
+              <span className="text-[9px] font-bold text-gray-600 text-center leading-tight truncate w-full">{a.label}</span>
             </button>
           ))}
         </div>

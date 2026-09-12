@@ -24,7 +24,6 @@ import {
   UploadCloud,
   Palette,
   Save,
-  LogIn,
 } from 'lucide-react'
 import { TenantSettingsAPI, ConfigAPI, UploadAPI, BASE_URL } from '../../api/adminApis'
 import { useBranding } from '../../context/BrandingContext'
@@ -261,7 +260,7 @@ export default function SettingsPage() {
       <div className="flex gap-1.5 bg-gray-100/80 p-1.5 rounded-2xl no-scrollbar overflow-x-auto">
         {[
           { id: 'branding', label: 'Theme & Branding', icon: Palette },
-          { id: 'login_legal', label: 'Login & Legal Policies', icon: FileText },
+          { id: 'login_legal', label: 'Privacy & Policy', icon: FileText },
           { id: 'domain', label: 'Custom Domain', icon: Globe },
           { id: 'usage', label: 'Plan & Usage', icon: Layers },
         ].map((t) => {
@@ -489,8 +488,8 @@ export default function SettingsPage() {
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-6">
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div>
-                <h2 className="text-base font-bold text-gray-800">Login Screen &amp; Legal Policies</h2>
-                <p className="text-xs text-gray-400">Manage citizen app login wallpaper, Privacy Policy &amp; Terms</p>
+                <h2 className="text-base font-bold text-gray-800">Privacy &amp; Policy</h2>
+                <p className="text-xs text-gray-400">Manage Privacy Policy &amp; Terms</p>
               </div>
               <button
                 onClick={handleSaveBranding}
@@ -503,55 +502,8 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            {/* Login Wallpaper / Background */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                <LogIn className="w-4 h-4 text-gray-500" />
-                <span>Citizen App Login Screen Background Image</span>
-              </label>
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col sm:flex-row items-center gap-4">
-                <div className="w-32 h-20 rounded-xl bg-gray-200 overflow-hidden border border-gray-300 flex items-center justify-center shrink-0">
-                  {loginBgPreview ? (
-                    <img src={resolveImg(loginBgPreview)} alt="Login Background" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[10px] text-gray-400 text-center px-1">Default Gradient</span>
-                  )}
-                </div>
-                <div className="flex-1 space-y-2 w-full">
-                  <div className="flex items-center gap-2">
-                    <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">
-                      <UploadCloud className="w-3.5 h-3.5 text-gray-600" />
-                      <span>Choose Background</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            setLoginBgFile(file)
-                            setLoginBgPreview(URL.createObjectURL(file))
-                          }
-                        }}
-                      />
-                    </label>
-                    {loginBgFile && <span className="text-xs text-green-700 font-semibold">{loginBgFile.name}</span>}
-                  </div>
-                  <input
-                    value={loginBgUrl}
-                    onChange={(e) => {
-                      setLoginBgUrl(e.target.value)
-                      setLoginBgPreview(e.target.value)
-                    }}
-                    placeholder="Or enter image URL (https://...)"
-                    className="w-full border border-gray-200 bg-white rounded-xl px-3.5 h-9 text-xs outline-none focus:border-[var(--primary)]"
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Privacy Policy */}
-            <div className="border-t border-gray-100 pt-5 space-y-3">
+            <div className="space-y-3">
               <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-green-600" />
                 <span>Privacy Policy</span>

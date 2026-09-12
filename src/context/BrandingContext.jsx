@@ -59,7 +59,8 @@ function hexToRgb(hex) {
 }
 
 // Apply CSS variables to :root
-function applyTheme(branding) {
+// Apply CSS variables to :root, dynamic favicon and title
+function applyTheme(branding, tenant) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   const primary   = branding?.primaryColor   || DEFAULT_BRANDING.primaryColor
@@ -78,21 +79,30 @@ function applyTheme(branding) {
   root.style.setProperty('--primary-lighter', `rgba(${primaryRgb}, 0.06)`)
   root.style.setProperty('--secondary-light', `rgba(${secondaryRgb}, 0.12)`)
 
-  // Update favicon if available
-  if (branding?.faviconUrl) {
-    let link = document.querySelector("link[rel~='icon']")
-    if (!link) {
-      link = document.createElement('link')
-      link.rel = 'icon'
-      document.head.appendChild(link)
+  // ✅ 1. Update Favicon dynamically: priority faviconUrl > logoUrl > logo
+  const iconRaw = branding?.faviconUrl || branding?.logoUrl || branding?.logo
+  if (iconRaw) {
+    const fullFavicon = resolveBrandingUrl(iconRaw)
+    if (fullFavicon) {
+      let link = document.querySelector("link[rel~='icon']")
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = fullFavicon
     }
-    link.href = branding.faviconUrl
   }
 
-  // Update page title
-  if (branding?.leaderName) {
-    document.title = `${branding.leaderName} — Admin Panel`
-  }
+  // ✅ 2. Update Page Title dynamically
+  const tenantName =
+    tenant?.title ||
+    tenant?.name ||
+    branding?.platformName ||
+    branding?.title ||
+    branding?.leaderName ||
+    'Leader'
+  document.title = `${tenantName} — Admin Panel`
 }
 
 export function BrandingProvider({ children }) {
@@ -100,13 +110,15 @@ export function BrandingProvider({ children }) {
   const [branding, setBranding] = useState(() => {
     try {
       const cached = localStorage.getItem('app_branding')
+      const cachedTenant = localStorage.getItem('app_tenant')
       if (cached) {
         const parsed = normalizeBranding(JSON.parse(cached))
-        applyTheme(parsed)
+        const parsedTenant = cachedTenant ? JSON.parse(cachedTenant) : null
+        applyTheme(parsed, parsedTenant)
         return parsed
       }
     } catch {}
-    applyTheme(DEFAULT_BRANDING)
+    applyTheme(DEFAULT_BRANDING, null)
     return DEFAULT_BRANDING
   })
 
@@ -125,8 +137,14 @@ export function BrandingProvider({ children }) {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlTenant = params.get('tenant')
-      if (urlTenant) {
-        localStorage.setItem('tenant_slug', urlTenant)
+      if (urlTenant && urlTenant.trim()) {
+        const clean = urlTenant.trim().toLowerCase()
+        const prev = localStorage.getItem('tenant_slug')
+        if (prev !== clean) {
+          localStorage.setItem('tenant_slug', clean)
+          localStorage.removeItem('app_branding')
+          localStorage.removeItem('app_tenant')
+        }
       }
     }
     loadConfig()
@@ -138,34 +156,47 @@ export function BrandingProvider({ children }) {
       const data   = res?.data ?? res
       const rawBrand = { ...DEFAULT_BRANDING, ...(data?.branding || {}) }
       const brand  = normalizeBranding(rawBrand)
+      const currentTenant = data?.tenant || null
 
       setBranding(brand)
-      setTenant(data?.tenant || null)
+      setTenant(currentTenant)
       setFeatures(data?.enabledFeatures || [])
-      applyTheme(brand)
+      applyTheme(brand, currentTenant)
 
       // Cache in localStorage for offline/fast load
       localStorage.setItem('app_branding', JSON.stringify(brand))
-      localStorage.setItem('app_tenant',   JSON.stringify(data?.tenant || {}))
-      if (data?.tenant?.slug) {
-        localStorage.setItem('tenant_slug', data.tenant.slug)
+      if (currentTenant) {
+        localStorage.setItem('app_tenant', JSON.stringify(currentTenant))
+        if (currentTenant.slug) {
+          localStorage.setItem('tenant_slug', currentTenant.slug)
+        }
       }
     } catch {
       // Use cached branding if API fails
       const cached = localStorage.getItem('app_branding')
+      const cachedTenant = localStorage.getItem('app_tenant')
       if (cached) {
         const brand = normalizeBranding(JSON.parse(cached))
+        const t = cachedTenant ? JSON.parse(cachedTenant) : null
         setBranding(brand)
-        applyTheme(brand)
+        applyTheme(brand, t)
       } else {
-        applyTheme(DEFAULT_BRANDING)
+        applyTheme(DEFAULT_BRANDING, null)
       }
     } finally {
       setLoading(false)
     }
   }
 
-  const isFeatureEnabled = (key) => features.some(f => f.key === key)
+  const isFeatureEnabled = (key) => {
+    if (!key) return true
+    if (!features || features.length === 0) return true
+    if (key === 'news') {
+      const match = features.find(f => f.key === 'news')
+      return match ? match.isEnabled !== false : true
+    }
+    return features.some(f => f.key === key)
+  }
 
   return (
     <BrandingContext.Provider value={{ branding, tenant, features, loading, isFeatureEnabled, reload: loadConfig }}>

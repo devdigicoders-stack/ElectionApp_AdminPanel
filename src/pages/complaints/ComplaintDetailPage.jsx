@@ -13,7 +13,8 @@ import {
   Camera,
   X,
   Send,
-  MessageSquare
+  MessageSquare,
+  Trash2
 } from 'lucide-react'
 import { ComplaintsAPI, AdminUsersAPI, UploadAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
@@ -310,6 +311,28 @@ export default function ComplaintDetailPage() {
     }
   }
 
+  // ── Delete Complaint Action ──────────────────────────────────
+  const [deleting, setDeleting] = useState(false)
+  const handleDeleteComplaint = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Delete Complaint?',
+      text: `Are you sure you want to permanently delete complaint ${c?.complaintNumber || ''}? This action cannot be undone.`,
+      confirmButtonText: 'Yes, Delete Permanently',
+      icon: 'warning',
+    })
+    if (!confirmed) return
+    setDeleting(true)
+    try {
+      await ComplaintsAPI.delete(id)
+      successAlert('Deleted!', 'Complaint has been permanently deleted.')
+      navigate('/complaints', { replace: true })
+    } catch (e) {
+      errorAlert('Delete Failed', e.message || 'Failed to delete complaint')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <Skeleton rows={6} />
   if (error) return <ApiError message={error} onRetry={load} />
   if (!c) return null
@@ -340,9 +363,20 @@ export default function ComplaintDetailPage() {
           Back to Complaints
         </button>
 
-        <span className="text-xs text-gray-400 font-medium">
-          Created {c?.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : ''}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400 font-medium">
+            Created {c?.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : ''}
+          </span>
+          <button
+            onClick={handleDeleteComplaint}
+            disabled={deleting}
+            className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-white hover:bg-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
+            title="Delete Complaint Permanently"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ============================================================ */}

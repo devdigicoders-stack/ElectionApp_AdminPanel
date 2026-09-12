@@ -283,11 +283,12 @@ export default function AdminLayout() {
       <header className="shrink-0 bg-white shadow-sm z-20" style={{ borderBottom: '2px solid var(--primary-light)' }}>
         <div className="flex items-center justify-between px-4 h-14 max-w-2xl mx-auto w-full">
           <div className="flex items-center gap-2.5">
-            {resolveBrandingUrl(branding?.logoUrl) ? (
+            {resolveBrandingUrl(branding?.logoUrl || branding?.logo) ? (
               <img
-                src={resolveBrandingUrl(branding?.logoUrl)}
+                key={resolveBrandingUrl(branding?.logoUrl || branding?.logo)}
+                src={resolveBrandingUrl(branding?.logoUrl || branding?.logo)}
                 alt="Logo"
-                className="w-8 h-8 rounded-xl object-contain"
+                className="w-8 h-8 rounded-xl object-contain bg-white border border-gray-100 shadow-xs"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   const fallback = e.currentTarget.parentElement?.querySelector('.header-logo-fallback');
@@ -296,20 +297,27 @@ export default function AdminLayout() {
               />
             ) : null}
             <div
-              className="header-logo-fallback w-8 h-8 rounded-xl items-center justify-center text-white text-xs font-black"
+              className="header-logo-fallback w-8 h-8 rounded-xl items-center justify-center text-white text-xs font-black shadow-xs"
               style={{
                 background: 'var(--primary)',
-                display: resolveBrandingUrl(branding?.logoUrl) ? 'none' : 'flex',
+                display: resolveBrandingUrl(branding?.logoUrl || branding?.logo) ? 'none' : 'flex',
               }}
             >
-              {(branding?.leaderName || 'LA')[0]}
+              {(tenant?.name || branding?.platformName || branding?.leaderName || 'LA')[0]}
             </div>
             <div>
-              <p className="text-[13px] font-black text-gray-900 leading-none">{currentTitle}</p>
+              <p className="text-[13px] font-black text-gray-900 leading-none truncate max-w-[160px] sm:max-w-xs">
+                {tenant?.name || branding?.platformName || currentTitle}
+              </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[9px] font-bold tracking-widest" style={{ color: 'var(--primary)' }}>
-                  ADMIN PANEL
+                  {currentTitle.toUpperCase()}
                 </span>
+                {tenant?.slug && (
+                  <span className="text-[8px] font-extrabold px-1.5 py-0.2 rounded-md bg-gray-100 text-gray-600 font-mono">
+                    @{tenant.slug}
+                  </span>
+                )}
                 {userRole !== 'admin' && userRole !== 'leader' && userRole !== 'owner' && (
                   <span className="text-[8px] font-extrabold px-1.5 py-0.2 rounded-md uppercase tracking-wider bg-gray-100 text-gray-600">
                     {userRole.replace(/_/g, ' ')}

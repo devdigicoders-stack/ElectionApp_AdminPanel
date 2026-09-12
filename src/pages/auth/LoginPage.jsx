@@ -54,6 +54,15 @@ export default function LoginPage() {
       localStorage.setItem('admin_token', token)
       localStorage.setItem('admin_user', JSON.stringify(user))
 
+      const tenantInfo = res?.data?.tenant || res?.tenant
+      if (tenantInfo?.slug) {
+        localStorage.setItem('tenant_slug', tenantInfo.slug)
+        localStorage.setItem('app_tenant', JSON.stringify(tenantInfo))
+        if (tenantInfo.branding) {
+          localStorage.setItem('app_branding', JSON.stringify(tenantInfo.branding))
+        }
+      }
+
       if (rememberMe) {
         localStorage.setItem('remember_admin_email', form.email)
       } else {

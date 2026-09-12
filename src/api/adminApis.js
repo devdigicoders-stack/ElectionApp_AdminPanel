@@ -9,28 +9,52 @@ export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3
 // ── TOKEN & TENANT HELPERS ────────────────────────────────
 const getToken = () => localStorage.getItem('admin_token')
 
-// ✅ Tenant Slug: SIRF .env ke VITE_TENANT_SLUG se aata hai
-// Agar alag tenant test karna ho — .env me VITE_TENANT_SLUG=<slug> badlo aur server restart karo
-const getTenantSlug = () => import.meta.env.VITE_TENANT_SLUG || ''
+// ✅ Dynamic Tenant Resolution:
+// 1. URL Query Param (?tenant=slug)
+// 2. LocalStorage (tenant_slug)
+// 3. Saved Logged-in Admin User
+// 4. Subdomain
+// 5. Fallback to .env (VITE_TENANT_SLUG)
+export const getTenantSlug = () => {
+  if (typeof window !== 'undefined') {
+    // 1️⃣ URL param (?tenant=chaurasiya ya ?tenant=cjp)
+    const urlParams = new URLSearchParams(window.location.search)
+    const slugFromQuery = urlParams.get('tenant')
+    if (slugFromQuery && slugFromQuery.trim()) {
+      const clean = slugFromQuery.trim().toLowerCase()
+      localStorage.setItem('tenant_slug', clean)
+      return clean
+    }
 
-// ── COMMENTED: URL & localStorage based tenant detection ──
-// (pehle ?tenant=kj URL param ya localStorage se tenant pick hota tha)
-// const getTenantSlug = () => {
-//   if (typeof window !== 'undefined') {
-//     // 1️⃣ URL param se check karo (?tenant=kj)
-//     const urlParams = new URLSearchParams(window.location.search)
-//     const slugFromQuery = urlParams.get('tenant')
-//     if (slugFromQuery) {
-//       localStorage.setItem('tenant_slug', slugFromQuery)
-//       return slugFromQuery
-//     }
-//     // 2️⃣ localStorage se check karo
-//     const slugFromStorage = localStorage.getItem('tenant_slug')
-//     if (slugFromStorage) return slugFromStorage
-//   }
-//   // 3️⃣ .env se fallback (VITE_TENANT_SLUG=demo)
-//   return import.meta.env.VITE_TENANT_SLUG || ''
-// }
+    // 2️⃣ localStorage me saved tenant slug
+    const slugFromStorage = localStorage.getItem('tenant_slug')
+    if (slugFromStorage && slugFromStorage.trim()) {
+      return slugFromStorage.trim().toLowerCase()
+    }
+
+    // 3️⃣ Saved admin user ka tenant
+    try {
+      const savedUser = localStorage.getItem('admin_user')
+      if (savedUser) {
+        const u = JSON.parse(savedUser)
+        const userTenant = u?.tenantSlug || u?.tenant?.slug
+        if (userTenant) return userTenant.trim().toLowerCase()
+      }
+    } catch {}
+
+    // 4️⃣ Subdomain (production e.g. chaurasiya.admin.domain.com)
+    const host = window.location.hostname || ''
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      const parts = host.split('.')
+      if (parts.length > 2) {
+        return parts[0].toLowerCase()
+      }
+    }
+  }
+
+  // 5️⃣ .env se fallback
+  return (import.meta.env.VITE_TENANT_SLUG || '').trim().toLowerCase()
+}
 
 
 const authHeader = () => {
@@ -180,6 +204,8 @@ export const ComplaintsAPI = {
   getAnalytics: () => api('GET', '/complaints/analytics'),
   getMine: () => api('GET', '/complaints/my'),
   create: (data) => api('POST', '/complaints', data),
+  remove: (id) => api('DELETE', `/complaints/${id}`),
+  delete: (id) => api('DELETE', `/complaints/${id}`),
 
   // Export CSV / Excel
   exportComplaints: async (format = 'csv', params = {}) => {
@@ -396,7 +422,7 @@ export const ManifestoAPI = {
 export const NewsAPI = {
   getAll: (params = {}) => api('GET', `/news?${new URLSearchParams(params)}`),
   getAllAdmin: (params = {}) => api('GET', `/news/admin?${new URLSearchParams(params)}`),
-  getOne: (id) => api('GET', `/news/${id}`),
+  getOne: (id) => api('GET', `/news/admin/${id}`).catch(() => api('GET', `/news/${id}`)),
   getCategories: () => api('GET', '/news/categories'),
   getStats: () => api('GET', '/news/stats'),
   create: (data) => api('POST', '/news', data),

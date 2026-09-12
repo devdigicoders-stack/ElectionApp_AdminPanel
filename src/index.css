@@ -145,3 +145,11 @@
 * {
     -webkit-tap-highlight-color: transparent;
 }
+
+/* ── TinyMCE Popups & Dialogs Over Modal ── */
+.tox-tinymce-aux {
+    z-index: 99999 !important;
+}
+.tox .tox-dialog {
+    z-index: 100000 !important;
+}
