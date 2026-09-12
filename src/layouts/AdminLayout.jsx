@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { onMessageListener, requestNotificationPermission } from '../firebase'
+import { NotificationsAPI } from '../api/adminApis'
 import {
   Home,
   AlertTriangle,
@@ -211,15 +212,49 @@ export default function AdminLayout() {
   const currentTitle = pageTitles[location.pathname] || 'Admin'
   const isAllowed = isPathAllowed(location.pathname, userRole)
 
-  // ── FIREBASE WEB PUSH LISTENERS & TOKEN AUTO-SYNC ──
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      requestNotificationPermission().catch(() => {})
-    }
+  // ── PLATFORM BROADCASTS UNREAD BADGE & FCM LISTENERS ──
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
 
-    onMessageListener((payload) => {
+  const fetchNotifCount = useCallback(async () => {
+    try {
+      const res = await NotificationsAPI.getPlatformBroadcasts({ limit: 20 }).catch(() => null)
+      const list = res?.data?.data || res?.data || (Array.isArray(res) ? res : [])
+      if (Array.isArray(list)) {
+        setUnreadNotifCount(list.length)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchNotifCount()
+
+    // ── AUTO FCM TOKEN REGISTRATION ──────────────────────────────────────────
+    // On every login / layout mount:
+    //  • If permission already granted → silently refresh token & save to backend
+    //  • If permission is default (not asked yet) → request permission then save
+    //  • If permission denied → skip silently (user blocked it)
+    const autoRegisterFcmToken = async () => {
+      try {
+        if (typeof window === 'undefined' || !('Notification' in window)) return
+        if (Notification.permission === 'denied') return // user blocked, respect it
+
+        const res = await requestNotificationPermission()
+        if (res?.success && res?.token) {
+          // Save token to backend (in case it refreshed or wasn't saved before)
+          await NotificationsAPI.registerFcmToken(res.token).catch(() => {})
+        }
+      } catch {
+        // Silent fail — don't disrupt the UI
+      }
+    }
+    autoRegisterFcmToken()
+
+    const unsub = onMessageListener((payload) => {
+      fetchNotifCount()
       const title = payload.notification?.title || payload.data?.title || 'Notification Alert'
       const body = payload.notification?.body || payload.data?.body || payload.data?.message || ''
+      // Show in-app toast when PWA is open (foreground)
+      // OS/desktop notification is handled by the Service Worker for background delivery
       toast.info(
         <div>
           <p className="font-black text-sm text-gray-900">{title}</p>
@@ -231,22 +266,12 @@ export default function AdminLayout() {
           icon: '🔔',
         }
       )
-
-      // Also trigger browser OS desktop popup notification with app branding logo
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          const appLogo = resolveBrandingUrl(branding?.logoUrl || branding?.logo) || '/logo.png'
-          new Notification(title, {
-            body,
-            icon: appLogo,
-            badge: appLogo,
-          })
-        } catch (e) {
-          console.warn('Native notification failed:', e)
-        }
-      }
     })
-  }, [])
+
+    return () => {
+      if (typeof unsub === 'function') unsub()
+    }
+  }, [fetchNotifCount])
 
   // Filter drawer menu items by logged-in user's role AND tenant plan features
   const filteredMenuSections = masterMenuSections
@@ -352,13 +377,18 @@ export default function AdminLayout() {
             {isPathAllowed('/notifications', userRole) && (
               <button
                 onClick={() => navigate('/notifications')}
-                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
                 style={{ background: 'var(--primary-light)' }}
+                title="Platform Notifications"
               >
                 <svg className="w-5 h-5" style={{ color: 'var(--primary)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[8px] text-white flex items-center justify-center font-bold">3</span>
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 rounded-full text-[8px] text-white flex items-center justify-center font-black shadow-xs">
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </span>
+                )}
               </button>
             )}
 

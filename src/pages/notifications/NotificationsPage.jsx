@@ -19,16 +19,29 @@ import {
   Sparkles,
   ChevronRight,
   ShieldCheck,
+  Building2,
+  ExternalLink,
+  RefreshCw,
+  AlertTriangle,
+  Info,
 } from 'lucide-react'
 import { NotificationsAPI, AreasAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
 import { confirmDialog } from '../../utils/sweetAlert'
-import { requestNotificationPermission } from '../../firebase'
+import { requestNotificationPermission, onMessageListener } from '../../firebase'
 import { useBranding, resolveBrandingUrl } from '../../context/BrandingContext'
 
 export default function NotificationsPage() {
   const { branding } = useBranding()
   const { show, Toast } = useToast()
+
+  // ── MAIN TAB: 'super_admin' (Platform Alerts) | 'constituency' (Campaign Outbox) ──
+  const [activeMainTab, setActiveMainTab] = useState('super_admin')
+  const [platformBroadcasts, setPlatformBroadcasts] = useState([])
+  const [loadingBroadcasts, setLoadingBroadcasts] = useState(true)
+  const [broadcastSearch, setBroadcastSearch] = useState('')
+
+  // Constituency Notifications (Outbox) State
   const [history, setHistory] = useState([])
   const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -45,14 +58,16 @@ export default function NotificationsPage() {
   const [channel, setChannel] = useState('push')
   const [sending, setSending] = useState(false)
 
-  // Load notifications and area tree
+  // Load notifications, platform broadcasts, and area tree
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadingBroadcasts(true)
     setError(null)
     try {
-      const [res, areaRes] = await Promise.all([
-        NotificationsAPI.getAllAdmin({ page: 1, limit: 50 }),
+      const [res, areaRes, broadRes] = await Promise.all([
+        NotificationsAPI.getAllAdmin({ page: 1, limit: 50 }).catch(() => null),
         AreasAPI.getTree().catch(() => null),
+        NotificationsAPI.getPlatformBroadcasts({ page: 1, limit: 50 }).catch(() => null),
       ])
 
       // Parse notifications list
@@ -65,6 +80,15 @@ export default function NotificationsPage() {
         ? rawData
         : []
       setHistory(notifList)
+
+      // Parse platform broadcasts from Super Admin
+      const rawBroad = broadRes?.data ?? broadRes
+      const broadList = Array.isArray(rawBroad?.data)
+        ? rawBroad.data
+        : Array.isArray(rawBroad)
+        ? rawBroad
+        : []
+      setPlatformBroadcasts(broadList)
 
       // Parse areas flat list
       const trData = areaRes?.data ?? areaRes
@@ -88,6 +112,7 @@ export default function NotificationsPage() {
       setError(e.message || 'Failed to load notifications')
     } finally {
       setLoading(false)
+      setLoadingBroadcasts(false)
     }
   }, [])
 
@@ -143,6 +168,10 @@ export default function NotificationsPage() {
   })
   const [fcmLoading, setFcmLoading] = useState(false)
   const [testPushing, setTestPushing] = useState(false)
+  const [hasDeviceToken, setHasDeviceToken] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return !!localStorage.getItem('fcm_token')
+  })
 
   // Request & register FCM token
   const handleEnablePush = async () => {
@@ -151,7 +180,8 @@ export default function NotificationsPage() {
       const res = await requestNotificationPermission()
       if (res?.success) {
         setFcmStatus('granted')
-        show('Web Push Notifications active! This device will receive push alerts.')
+        setHasDeviceToken(true)
+        show('Web Push Notifications active! Device token linked to database.')
       } else if (res?.reason === 'denied') {
         setFcmStatus('denied')
         show('Notification permission was blocked in browser settings.', 'error')
@@ -165,18 +195,28 @@ export default function NotificationsPage() {
     }
   }
 
-  // Auto-sync token on load if permission is already granted
+  // Auto-sync token on load if permission is already granted + listen for foreground messages
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       requestNotificationPermission()
         .then((res) => {
-          if (res?.success) setFcmStatus('granted')
+          if (res?.success) {
+            setFcmStatus('granted')
+            setHasDeviceToken(true)
+          }
         })
         .catch(() => {})
     }
-  }, [])
 
-  // Send a quick test push to verify FCM delivery
+    const unsubscribe = onMessageListener(() => {
+      load()
+    })
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe()
+    }
+  }, [load])
+
+  // Send a quick test push to verify FCM delivery and ensure device token is saved
   const handleTestSelfPush = async () => {
     setTestPushing(true)
     try {
@@ -184,30 +224,27 @@ export default function NotificationsPage() {
       let token = localStorage.getItem('fcm_token')
       if (!token) {
         const permRes = await requestNotificationPermission()
-        if (permRes?.token) token = permRes.token
-      }
-
-      // 2. Dispatch FCM Push via backend
-      const testRes = await NotificationsAPI.testPush(token).catch(() => null)
-
-      // 3. Pop native browser / OS notification for instant feedback with real logo
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          const appLogo = resolveBrandingUrl(branding?.logoUrl || branding?.logo) || '/logo.png'
-          new Notification('🔔 Test Web Push Alert', {
-            body: 'FCM Push notification system is working 100% live on your Admin Panel!',
-            icon: appLogo,
-            badge: appLogo,
-          })
-        } catch (e) {
-          console.warn('Native notification alert:', e)
+        if (permRes?.token) {
+          token = permRes.token
+          setHasDeviceToken(true)
         }
       }
 
+      if (token) {
+        // Guarantee token is saved in MongoDB for this admin
+        await NotificationsAPI.registerFcmToken(token).catch((err) => {
+          console.warn('registerFcmToken warning:', err)
+        })
+        setHasDeviceToken(true)
+      }
+
+      // 2. Dispatch FCM Push via backend — FCM itself will trigger the OS notification
+      const testRes = await NotificationsAPI.testPush(token).catch(() => null)
+
       if (testRes?.success || testRes?.data?.success) {
-        show('Test push dispatched via FCM! Alert triggered on your device.')
+        show('✅ Test push sent via FCM! Notification will appear shortly.')
       } else {
-        show('Test push triggered! Check your desktop/browser notification.')
+        show('✅ Device token registered! FCM is now linked to your account.')
       }
       await load()
     } catch (err) {
@@ -258,26 +295,90 @@ export default function NotificationsPage() {
     return channelMatch && searchMatch
   })
 
+  // Filtered Platform Broadcasts from Super Admin
+  const filteredPlatformBroadcasts = platformBroadcasts.filter((b) => {
+    const q = broadcastSearch.toLowerCase().trim()
+    if (!q) return true
+    return (
+      b.title?.toLowerCase().includes(q) ||
+      b.message?.toLowerCase().includes(q) ||
+      b.type?.toLowerCase().includes(q) ||
+      b.priority?.toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="space-y-4 pb-28">
       <Toast />
 
-      {/* ── HEADER WITH TITLE & + SEND NOTIFICATION BUTTON ── */}
+      {/* ── HEADER WITH TITLE & ACTION BUTTON ── */}
       <div className="flex items-center justify-between gap-3 pt-1">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">Notifications</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
+            Notifications & Broadcasts
+          </h1>
           <p className="text-xs text-gray-400 font-medium mt-0.5">
-            {history.length} broadcast{history.length === 1 ? '' : 's'} listed
+            {activeMainTab === 'super_admin'
+              ? `${platformBroadcasts.length} platform announcement${platformBroadcasts.length === 1 ? '' : 's'} from Super Admin`
+              : `${history.length} voter broadcast${history.length === 1 ? '' : 's'} listed`}
           </p>
         </div>
 
+        {activeMainTab === 'constituency' ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-bold text-white rounded-2xl shadow-lg shadow-red-900/10 active:scale-95 transition-all cursor-pointer shrink-0"
+            style={{ background: 'var(--primary)' }}
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Send Notification</span>
+          </button>
+        ) : (
+          <button
+            onClick={load}
+            disabled={loadingBroadcasts}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 rounded-2xl shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${loadingBroadcasts ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── PRIMARY DUAL-TAB NAVIGATION ── */}
+      <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100/90 rounded-2xl border border-gray-200/80">
         <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-bold text-white rounded-2xl shadow-lg shadow-red-900/10 active:scale-95 transition-all cursor-pointer shrink-0"
-          style={{ background: 'var(--primary)' }}
+          onClick={() => setActiveMainTab('super_admin')}
+          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeMainTab === 'super_admin'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
+          }`}
         >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span>Send Notification</span>
+          <Building2 className="w-4 h-4 text-emerald-700 shrink-0" />
+          <span className="truncate">🏢 हेड ऑफिस सूचनाएं</span>
+          {platformBroadcasts.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+              {platformBroadcasts.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveMainTab('constituency')}
+          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeMainTab === 'constituency'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <Radio className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="truncate">📢 मतदाता घोषणाएं</span>
+          {history.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 shrink-0">
+              {history.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -295,11 +396,13 @@ export default function NotificationsPage() {
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live FCM Connected
+                  {hasDeviceToken ? 'Live FCM Connected' : 'Device Linking'}
                 </span>
               </div>
               <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
-                This browser will receive real-time push alerts even when the tab is in the background.
+                {hasDeviceToken
+                  ? 'This device is registered to receive real-time push alerts from Super Admin and campaign events.'
+                  : 'Click "Test / Link Device" to link your browser device token to the server database.'}
               </p>
             </div>
           </div>
@@ -307,17 +410,17 @@ export default function NotificationsPage() {
             <button
               onClick={handleTestSelfPush}
               disabled={testPushing}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
             >
               {testPushing ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-emerald-600/30 border-t-emerald-600 rounded-full animate-spin" />
-                  <span>Sending Test...</span>
+                  <span>Linking & Testing...</span>
                 </>
               ) : (
                 <>
                   <BellRing className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Send Test Push</span>
+                  <span>Test / Link Push</span>
                 </>
               )}
             </button>
@@ -348,7 +451,7 @@ export default function NotificationsPage() {
                 Enable Web Push Alerts on this Device
               </p>
               <p className="text-[11px] text-gray-600 font-medium mt-0.5">
-                Receive instant push notifications when broadcasts are sent or citizens submit complaints.
+                Receive instant push notifications when broadcasts are sent by Head Office or citizens submit complaints.
               </p>
             </div>
           </div>
@@ -373,203 +476,344 @@ export default function NotificationsPage() {
         </div>
       ) : null}
 
-      {/* ── SEARCH & FILTER CHIPS ── */}
-      <div className="space-y-2.5">
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search notifications by title or message..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 h-10 text-xs sm:text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10 transition-all"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="flex gap-2 no-scrollbar overflow-x-auto pb-0.5">
-          {[
-            { key: 'all', label: `All (${history.length})` },
-            { key: 'push', label: 'Push Only' },
-            { key: 'in_app', label: 'In-App' },
-            { key: 'sent', label: 'Delivered' },
-          ].map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setFilter(t.key)}
-              className={`shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-full border transition-all cursor-pointer ${
-                filter === t.key
-                  ? 'text-white border-transparent shadow-xs'
-                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-              }`}
-              style={filter === t.key ? { background: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── NOTIFICATIONS HISTORY CARDS LIST ── */}
-      {loading ? (
-        <div className="space-y-3 pt-2">
-          <Skeleton rows={4} />
-        </div>
-      ) : error ? (
-        <div className="p-4">
-          <ApiError message={error} onRetry={load} />
-        </div>
-      ) : filteredHistory.length === 0 ? (
-        /* Empty State */
-        <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-10 text-center flex flex-col items-center">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-            style={{ background: 'var(--primary-light)' }}
-          >
-            <Bell className="w-7 h-7" style={{ color: 'var(--primary)' }} />
-          </div>
-          <h3 className="text-sm sm:text-base font-black text-gray-800">No notifications found</h3>
-          <p className="text-xs text-gray-400 max-w-xs mt-1 mb-4 leading-relaxed">
-            {search
-              ? 'No notifications match your search query.'
-              : 'Broadcast live announcements, rally reminders, or urgent news directly to your voters.'}
-          </p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl shadow cursor-pointer active:scale-95 transition-transform"
-            style={{ background: 'var(--primary)' }}
-          >
-            <Plus className="w-3.5 h-3.5" /> Send First Notification
-          </button>
-        </div>
-      ) : (
-        /* Cards List */
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION 1: SUPER ADMIN PLATFORM BROADCASTS (HEAD OFFICE) ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {activeMainTab === 'super_admin' && (
         <div className="space-y-3">
-          {filteredHistory.map((n) => {
-            const isPush = n.channel === 'push' || n.channel === 'both'
-            const audienceLabel =
-              n.target === 'volunteers'
-                ? 'Volunteers'
-                : n.target === 'members'
-                ? 'Members'
-                : n.target === 'area'
-                ? 'Specific Area'
-                : 'All Citizens'
-
-            return (
-              <div
-                key={n._id}
-                className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 transition-all hover:border-gray-200 hover:shadow-md space-y-3"
+          {/* Search Box */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search head office announcements by title, message, priority..."
+              value={broadcastSearch}
+              onChange={(e) => setBroadcastSearch(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 h-10 text-xs sm:text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10 transition-all"
+            />
+            {broadcastSearch && (
+              <button
+                onClick={() => setBroadcastSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
               >
-                {/* Card Top Row */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    {/* Channel Icon Badge */}
-                    <div
-                      className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-                        isPush ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                      }`}
-                    >
-                      {isPush ? <Smartphone className="w-5 h-5" /> : <Inbox className="w-5 h-5" />}
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Broadcasts List */}
+          {loadingBroadcasts ? (
+            <div className="space-y-3 pt-2">
+              <Skeleton rows={4} />
+            </div>
+          ) : filteredPlatformBroadcasts.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-10 text-center flex flex-col items-center">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
+                <Building2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-gray-800">
+                No Head Office Announcements
+              </h3>
+              <p className="text-xs text-gray-400 max-w-sm mt-1 leading-relaxed">
+                {broadcastSearch
+                  ? 'No announcements match your search.'
+                  : 'Important platform-wide broadcasts, infrastructure notices, and alerts from Super Admin will appear here in real-time.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredPlatformBroadcasts.map((b) => {
+                const isCritical = b.priority === 'critical'
+                const isHigh = b.priority === 'high'
+
+                return (
+                  <div
+                    key={b._id}
+                    className={`bg-white rounded-3xl border p-4 sm:p-5 transition-all shadow-xs hover:shadow-md space-y-3 ${
+                      isCritical
+                        ? 'border-red-200 bg-gradient-to-br from-red-50/20 to-white'
+                        : isHigh
+                        ? 'border-amber-200 bg-gradient-to-br from-amber-50/20 to-white'
+                        : 'border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    {/* Top Row: Badges & Timestamp */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-[10px] font-bold">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isCritical ? (
+                          <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-red-600" />
+                            Critical Alert
+                          </span>
+                        ) : isHigh ? (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            High Priority
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wider flex items-center gap-1">
+                            <Info className="w-3 h-3 text-emerald-600" />
+                            Announcement
+                          </span>
+                        )}
+
+                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 uppercase tracking-wider">
+                          {b.type || 'Platform'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-gray-400 font-medium">
+                        <Clock className="w-3 h-3" />
+                        <span>{b.sentAt || b.createdAt ? new Date(b.sentAt || b.createdAt).toLocaleString('en-IN') : '—'}</span>
+                      </div>
                     </div>
 
                     {/* Title and Message */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-black text-gray-900 leading-snug">
-                        {n.title}
+                    <div>
+                      <h3 className="text-base font-black text-gray-900 leading-snug">
+                        {b.title}
                       </h3>
-                      <p className="text-xs text-gray-600 mt-1 leading-relaxed whitespace-pre-line">
-                        {n.body || n.message}
+                      <p className="text-xs sm:text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-line">
+                        {b.message}
                       </p>
                     </div>
-                  </div>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDelete(n._id, n.title)}
-                    className="p-1.5 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
-                    title="Delete Notification"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                    {/* Action URL Button if present */}
+                    {b.actionUrl && (
+                      <div className="pt-1">
+                        <a
+                          href={b.actionUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+                        >
+                          <span>Open Attached Link</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )}
 
-                {/* Card Footer / Metadata Pills */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-50 text-[10px] sm:text-xs text-gray-400">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Audience Chip */}
-                    <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
-                      {n.target === 'volunteers' && <Star className="w-3 h-3 text-amber-500" />}
-                      {n.target === 'members' && <CreditCard className="w-3 h-3 text-emerald-500" />}
-                      {n.target === 'area' && <MapPin className="w-3 h-3 text-purple-500" />}
-                      {(!n.target || n.target === 'all') && <Users className="w-3 h-3 text-blue-500" />}
-                      {audienceLabel}
-                    </span>
+                    {/* Footer Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-[10px] sm:text-xs text-gray-400">
+                      <div className="flex items-center gap-1.5 font-bold text-gray-600">
+                        <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Dispatched by {b.sentByName || 'Super Admin'} (Head Office)</span>
+                      </div>
 
-                    {/* Channel Chip */}
-                    <span
-                      className={`font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                        n.channel === 'push'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                          : n.channel === 'in_app'
-                          ? 'bg-purple-50 text-purple-700 border border-purple-200/60'
-                          : 'bg-orange-50 text-orange-700 border border-orange-200/60'
-                      }`}
-                    >
-                      {n.channel || 'push'}
-                    </span>
-
-                    {/* Sent Status Badge */}
-                    <span
-                      className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md ${
-                        n.isSent !== false
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      {n.isSent !== false ? 'Sent' : 'Draft'}
-                    </span>
-                  </div>
-
-                  {/* Timestamp */}
-                  <div className="flex items-center gap-1 font-medium text-gray-400">
-                    <Clock className="w-3 h-3" />
-                    <span>{n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN') : '—'}</span>
-                  </div>
-                </div>
-
-                {/* Read Progress Bar (if sent) */}
-                {n.sentCount !== undefined && n.sentCount > 0 && (
-                  <div className="pt-1">
-                    <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
-                      <span>{n.readCount || 0} Citizens Read</span>
-                      <span className="text-emerald-600">
-                        {Math.round(((n.readCount || 0) / n.sentCount) * 100)}% Opened
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, Math.round(((n.readCount || 0) / n.sentCount) * 100))}%`,
-                        }}
-                      />
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-mono text-[9px] uppercase font-bold">
+                          {b.targetAudience || 'ALL_TENANTS'}
+                        </span>
+                        {b.channels?.map((ch) => (
+                          <span key={ch} className="px-1.5 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 text-[9px] uppercase font-bold">
+                            {ch}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                )}
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ── SECTION 2: CONSTITUENCY BROADCASTS (OUTBOX TO VOTERS)   ── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {activeMainTab === 'constituency' && (
+        <div className="space-y-3">
+          {/* Search & Filter Chips */}
+          <div className="space-y-2.5">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search voter broadcasts by title or message..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 h-10 text-xs sm:text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/10 transition-all"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex gap-2 no-scrollbar overflow-x-auto pb-0.5">
+              {[
+                { key: 'all', label: `All (${history.length})` },
+                { key: 'push', label: 'Push Only' },
+                { key: 'in_app', label: 'In-App' },
+                { key: 'sent', label: 'Delivered' },
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setFilter(t.key)}
+                  className={`shrink-0 text-xs font-bold px-3.5 py-1.5 rounded-full border transition-all cursor-pointer ${
+                    filter === t.key
+                      ? 'text-white border-transparent shadow-xs'
+                      : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                  }`}
+                  style={filter === t.key ? { background: 'var(--primary)', borderColor: 'var(--primary)' } : {}}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notifications History Cards List */}
+          {loading ? (
+            <div className="space-y-3 pt-2">
+              <Skeleton rows={4} />
+            </div>
+          ) : error ? (
+            <div className="p-4">
+              <ApiError message={error} onRetry={load} />
+            </div>
+          ) : filteredHistory.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-10 text-center flex flex-col items-center">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
+                style={{ background: 'var(--primary-light)' }}
+              >
+                <Bell className="w-7 h-7" style={{ color: 'var(--primary)' }} />
               </div>
-            )
-          })}
+              <h3 className="text-sm sm:text-base font-black text-gray-800">No voter notifications found</h3>
+              <p className="text-xs text-gray-400 max-w-xs mt-1 mb-4 leading-relaxed">
+                {search
+                  ? 'No notifications match your search query.'
+                  : 'Broadcast live announcements, rally reminders, or urgent news directly to your voters.'}
+              </p>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl shadow cursor-pointer active:scale-95 transition-transform"
+                style={{ background: 'var(--primary)' }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Send First Notification
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredHistory.map((n) => {
+                const isPush = n.channel === 'push' || n.channel === 'both'
+                const audienceLabel =
+                  n.target === 'volunteers'
+                    ? 'Volunteers'
+                    : n.target === 'members'
+                    ? 'Members'
+                    : n.target === 'area'
+                    ? 'Specific Area'
+                    : 'All Citizens'
+
+                return (
+                  <div
+                    key={n._id}
+                    className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 transition-all hover:border-gray-200 hover:shadow-md space-y-3"
+                  >
+                    {/* Card Top Row */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div
+                          className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                            isPush ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                          }`}
+                        >
+                          {isPush ? <Smartphone className="w-5 h-5" /> : <Inbox className="w-5 h-5" />}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm sm:text-base font-black text-gray-900 leading-snug">
+                            {n.title}
+                          </h3>
+                          <p className="text-xs text-gray-600 mt-1 leading-relaxed whitespace-pre-line">
+                            {n.body || n.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDelete(n._id, n.title)}
+                        className="p-1.5 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
+                        title="Delete Notification"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Card Footer / Metadata Pills */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-50 text-[10px] sm:text-xs text-gray-400">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
+                          {n.target === 'volunteers' && <Star className="w-3 h-3 text-amber-500" />}
+                          {n.target === 'members' && <CreditCard className="w-3 h-3 text-emerald-500" />}
+                          {n.target === 'area' && <MapPin className="w-3 h-3 text-purple-500" />}
+                          {(!n.target || n.target === 'all') && <Users className="w-3 h-3 text-blue-500" />}
+                          {audienceLabel}
+                        </span>
+
+                        <span
+                          className={`font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                            n.channel === 'push'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                              : n.channel === 'in_app'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200/60'
+                              : 'bg-orange-50 text-orange-700 border border-orange-200/60'
+                          }`}
+                        >
+                          {n.channel || 'push'}
+                        </span>
+
+                        <span
+                          className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md ${
+                            n.isSent !== false
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          {n.isSent !== false ? 'Sent' : 'Draft'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 font-medium text-gray-400">
+                        <Clock className="w-3 h-3" />
+                        <span>{n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN') : '—'}</span>
+                      </div>
+                    </div>
+
+                    {/* Read Progress Bar */}
+                    {n.sentCount !== undefined && n.sentCount > 0 && (
+                      <div className="pt-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+                          <span>{n.readCount || 0} Citizens Read</span>
+                          <span className="text-emerald-600">
+                            {Math.round(((n.readCount || 0) / n.sentCount) * 100)}% Opened
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, Math.round(((n.readCount || 0) / n.sentCount) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

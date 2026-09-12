@@ -439,6 +439,7 @@ export const NotificationsAPI = {
   create: (data) => api('POST', '/notifications', data),
   send: (id) => api('POST', `/notifications/${id}/send`),
   getAllAdmin: (params = {}) => api('GET', `/notifications/admin?${new URLSearchParams(params)}`),
+  getPlatformBroadcasts: (params = {}) => api('GET', `/notifications/platform-broadcasts?${new URLSearchParams(params)}`),
   remove: (id) => api('DELETE', `/notifications/${id}`),
   // Citizen
   getMine: (params = {}) => api('GET', `/notifications/my?${new URLSearchParams(params)}`),

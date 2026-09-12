@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
 import { NotificationsAPI } from './api/adminApis'
 
-export const VAPID_KEY = 'BPERg2BAS_k4Bq2pvQc4CWQq0RJNn_OSPv-qXNSkiYnqi15qWctR8Ha8cBxki22nE7NQi5J2rL1LzDNHHT8Cf3M'
+export const VAPID_KEY = 'BLqi31E2ot1ukfkmxam2dqCGptT3PnthMyuHkt6NQstph0dAYUk7MN5LsJhRR3_7fPW0XPfyviUHQ4NcfBRpP9Q'
 
 export const firebaseConfig = {
   apiKey: 'AIzaSyDAk7btG-dpz1dZiUVQbTBQJJHr07LPn-E',
