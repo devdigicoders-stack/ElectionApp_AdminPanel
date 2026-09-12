@@ -49,6 +49,7 @@ const ROLE_PERMITTED_PATHS = {
     '/gallery',
     '/manifesto',
     '/banners',
+    '/posters',
     '/notifications',
     '/homepage',
     '/leader-profile',
@@ -164,6 +165,7 @@ const masterMenuSections = [
       { path: '/gallery', icon: <Film className="w-5 h-5" />, label: 'Video Gallery', featureKey: 'gallery' },
       { path: '/manifesto', icon: <FileText className="w-5 h-5" />, label: 'Manifesto', featureKey: 'manifesto' },
       { path: '/banners', icon: <Flag className="w-5 h-5" />, label: 'Banner Management', featureKey: 'banners' },
+      { path: '/posters', icon: <Palette className="w-5 h-5" />, label: 'Poster Studio', featureKey: 'poster_generator' },
       { path: '/notifications', icon: <Bell className="w-5 h-5" />, label: 'Notifications', featureKey: 'notifications' },
     ]
   },
@@ -193,6 +195,7 @@ const pageTitles = {
   '/leader-profile': 'Leader Profile', '/profile': 'Profile', '/homepage': 'Homepage',
   '/registration': 'Registration Form', '/roles': 'Roles & Permissions', '/analytics': 'Analytics',
   '/settings': 'Settings', '/news': 'Blog / News', '/banners': 'Banners',
+  '/posters': 'Poster Studio', '/posters/:id': 'Poster Details',
   '/staff': 'Staff Management',
 }
 

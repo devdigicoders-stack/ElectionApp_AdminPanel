@@ -195,7 +195,11 @@ export function BrandingProvider({ children }) {
       const match = features.find(f => f.key === 'news')
       return match ? match.isEnabled !== false : true
     }
-    return features.some(f => f.key === key)
+    if (key === 'poster_generator' || key === 'posters') {
+      const match = features.find(f => f.key === 'poster_generator' || f.key === 'posters')
+      return match ? match.isEnabled !== false : true
+    }
+    return features.some(f => (typeof f === 'string' ? f === key : f.key === key))
   }
 
   return (
