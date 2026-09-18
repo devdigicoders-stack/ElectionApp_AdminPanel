@@ -244,7 +244,7 @@ export default function WorkDetailPage() {
               ['Status',       w.status     || '—'],
               ['Location',     w.location   || '—'],
               ['Created On',   w.createdAt  ? new Date(w.createdAt).toLocaleDateString('en-IN') : '—'],
-              ['Published',    w.isPublished !== false ? '✅ Public (Visible to Citizens)' : '🔒 Draft (Hidden)'],
+              ['Published',    w.isPublished !== false ? 'Public (Visible to Citizens)' : 'Draft (Hidden)'],
             ].map(([l,v]) => (
               <div key={l} className="bg-gray-50/60 p-3 rounded-2xl border border-gray-100">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{l}</p>

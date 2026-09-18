@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
+import {
+  CheckCircle2,
+  Clock,
+  Hourglass,
+  HardHat,
+  MapPin,
+  IndianRupee,
+  Camera,
+  Edit2,
+  Trash2,
+  Check,
+  X as CloseIcon,
+  Sparkles,
+} from 'lucide-react'
 import { WorksAPI, AreasAPI } from '../../api/adminApis'
 import { Skeleton, ApiError } from '../../hooks/useFetch.jsx'
 import { confirmDialog } from '../../utils/sweetAlert'
@@ -19,12 +33,12 @@ const EMPTY = {
 }
 
 const statusConfig = {
-  completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed', emoji: '✅' },
-  in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'In Progress', emoji: '🔵' },
-  upcoming: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Upcoming', emoji: '⏳' },
+  completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed', Icon: CheckCircle2 },
+  in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'In Progress', Icon: Clock },
+  upcoming: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Upcoming', Icon: Hourglass },
 }
 
-const CATEGORY_SUGGESTIONS = [
+const DEFAULT_CATEGORIES = [
   'Roads & Infrastructure',
   'Water Supply',
   'Electricity & Lighting',
@@ -34,7 +48,7 @@ const CATEGORY_SUGGESTIONS = [
   'Schools & Education',
 ]
 
-const SVG_FALLBACK = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='44'%3E🏗️%3C/text%3E%3Ctext x='50%25' y='65%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='13' font-weight='700' fill='%2364748b'%3EDevelopment Work Photo%3C/text%3E%3C/svg%3E"
+const SVG_FALLBACK = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='13' font-weight='700' fill='%2364748b'%3EDevelopment Work Photo%3C/text%3E%3C/svg%3E"
 
 const resolveImageUrl = (url) => {
   if (!url || typeof url !== 'string') return SVG_FALLBACK
@@ -61,6 +75,18 @@ export default function WorksPage() {
   const [newImageUrl, setNewImageUrl] = useState('')
   const [newBeforeUrl, setNewBeforeUrl] = useState('')
   const [newAfterUrl, setNewAfterUrl] = useState('')
+  const [customCategories, setCustomCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem('admin_work_categories')
+      return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES
+    } catch {
+      return DEFAULT_CATEGORIES
+    }
+  })
+  const [categoryToEdit, setCategoryToEdit] = useState(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [areaTreeData, setAreaTreeData] = useState({ levels: [], tree: [] })
+  const [selectedAreas, setSelectedAreas] = useState({})
   const limit = 20
 
   // Flatten area tree to simple list for dropdown
@@ -98,6 +124,16 @@ export default function WorksPage() {
       setItems(worksList)
       setTotal(rawData?.total ?? worksList.length)
 
+      // Dynamically merge categories from DB works with existing categories
+      if (worksList.length > 0) {
+        const fromWorks = worksList.map(w => w.category?.trim()).filter(Boolean)
+        setCustomCategories(prev => {
+          const merged = Array.from(new Set([...prev, ...fromWorks]))
+          localStorage.setItem('admin_work_categories', JSON.stringify(merged))
+          return merged
+        })
+      }
+
       // 2. Stats
       const stData = st?.data ?? st
       let statsObj = { completed: 0, in_progress: 0, upcoming: 0 }
@@ -117,8 +153,10 @@ export default function WorksPage() {
       }
       setStats(statsObj)
 
-      // 3. Areas for dropdown
+      // 3. Areas for dropdown & hierarchical selection
       const treeData = arRes?.data?.tree ?? arRes?.tree ?? (Array.isArray(arRes?.data) ? arRes.data : [])
+      const levelsData = arRes?.data?.levels ?? arRes?.levels ?? []
+      setAreaTreeData({ levels: levelsData, tree: treeData })
       const flat = flattenAreas(treeData)
       setAreas(flat)
     } catch (e) { setError(e.message) }
@@ -195,6 +233,129 @@ export default function WorksPage() {
     }
   }
 
+  const saveCustomCategories = (newList) => {
+    setCustomCategories(newList)
+    try {
+      localStorage.setItem('admin_work_categories', JSON.stringify(newList))
+    } catch {}
+  }
+
+  const handleAddCategory = () => {
+    const val = form.category?.trim()
+    if (!val) {
+      toast.warning('Pehle category ka naam type karein')
+      return
+    }
+    if (customCategories.some(c => c.toLowerCase() === val.toLowerCase())) {
+      toast.info(`"${val}" pehle se hi categories me maujood hai`)
+      return
+    }
+    const updated = [...customCategories, val]
+    saveCustomCategories(updated)
+    toast.success(`Category "${val}" list me add ho gayi!`)
+  }
+
+  const handleStartEditCategory = (cat, e) => {
+    e.stopPropagation()
+    setCategoryToEdit(cat)
+    setEditingCategoryName(cat)
+  }
+
+  const handleSaveEditCategory = (oldCat, e) => {
+    e.stopPropagation()
+    const trimmed = editingCategoryName.trim()
+    if (!trimmed) {
+      toast.warning('Category ka naam khali nahi ho sakta')
+      return
+    }
+    const updated = customCategories.map(c => c === oldCat ? trimmed : c)
+    saveCustomCategories(updated)
+    if (form.category === oldCat) {
+      setForm(prev => ({ ...prev, category: trimmed }))
+    }
+    setCategoryToEdit(null)
+    setEditingCategoryName('')
+    toast.success(`Category update ho gayi!`)
+  }
+
+  const handleDeleteCategory = async (catToDelete, e) => {
+    e.stopPropagation()
+    const confirmed = await confirmDialog({
+      title: 'Delete Category?',
+      text: `Kya aap category "${catToDelete}" ko suggestions list se hatana chahte hain?`,
+      confirmButtonText: 'Yes, Remove',
+    })
+    if (!confirmed) return
+    const updated = customCategories.filter(c => c !== catToDelete)
+    saveCustomCategories(updated)
+    if (form.category === catToDelete) {
+      setForm(prev => ({ ...prev, category: '' }))
+    }
+    toast.success(`Category "${catToDelete}" remove ho gayi!`)
+  }
+
+  // ── Hierarchical Area Cascade Helpers (Block -> Gram Panchayat -> Village -> Ward) ──
+  const getAreaOptionsForLevel = (levelIndex) => {
+    if (!areaTreeData.tree || areaTreeData.tree.length === 0) return []
+    if (levelIndex === 0) return areaTreeData.tree
+
+    let currentNodes = areaTreeData.tree
+    for (let i = 0; i < levelIndex; i++) {
+      const prevLevel = areaTreeData.levels?.[i]
+      const prevLevelId = String(prevLevel?._id || prevLevel?.id || '')
+      const selectedId = selectedAreas[prevLevelId]
+      if (!selectedId) return []
+      const matchedNode = currentNodes.find(node => String(node._id || node.id) === String(selectedId))
+      if (!matchedNode || !Array.isArray(matchedNode.children)) return []
+      currentNodes = matchedNode.children
+    }
+    return currentNodes
+  }
+
+  const handleAreaSelect = (levelId, levelIndex, selectedId) => {
+    const levelKey = String(levelId)
+    const updatedAreas = { ...selectedAreas }
+
+    if (selectedId && String(selectedId).trim() !== '') {
+      updatedAreas[levelKey] = String(selectedId)
+    } else {
+      delete updatedAreas[levelKey]
+    }
+
+    // Reset deeper child levels
+    const levels = areaTreeData.levels || []
+    for (let i = levelIndex + 1; i < levels.length; i++) {
+      const childLvlId = String(levels[i]?._id || levels[i]?.id || '')
+      if (childLvlId) {
+        delete updatedAreas[childLvlId]
+      }
+    }
+    setSelectedAreas(updatedAreas)
+
+    // Deepest selected area becomes form.areaId
+    const validIds = Object.values(updatedAreas).filter(v => v && String(v).trim() !== '')
+    const activeSelectedId = validIds.length > 0 ? validIds[validIds.length - 1] : ''
+    setForm(prev => ({ ...prev, areaId: activeSelectedId }))
+  }
+
+  // Find chain of ancestor IDs for a given areaId in the tree
+  const findAreaAncestorMap = (targetId, nodes = areaTreeData.tree, path = {}) => {
+    if (!targetId || !Array.isArray(nodes)) return null
+    for (const node of nodes) {
+      const levelId = String(node.levelId?._id || node.levelId || '')
+      const nodeId = String(node._id || node.id)
+      const currentPath = { ...path, [levelId]: nodeId }
+      if (nodeId === String(targetId)) {
+        return currentPath
+      }
+      if (node.children?.length) {
+        const found = findAreaAncestorMap(targetId, node.children, currentPath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast.warning('⚠️ Title likhna zaroori hai!')
@@ -206,9 +367,15 @@ export default function WorksPage() {
     }
     setSaving(true)
     try {
+      const catVal = form.category.trim()
+      // Auto-save category into suggestions list if not present
+      if (catVal && !customCategories.some(c => c.toLowerCase() === catVal.toLowerCase())) {
+        saveCustomCategories([...customCategories, catVal])
+      }
+
       const payload = {
         title: form.title.trim(),
-        category: form.category.trim(),
+        category: catVal,
         description: form.description?.trim() || null,
         status: form.status || 'upcoming',
         budget: form.budget?.trim() || null,
@@ -262,12 +429,16 @@ export default function WorksPage() {
 
   const openEdit = (w, e) => {
     e.stopPropagation()
+    const targetAreaId = w.areaId?._id || w.areaId || w.area?._id || ''
+    const ancestorMap = findAreaAncestorMap(targetAreaId) || {}
+    setSelectedAreas(ancestorMap)
+
     setForm({
       title: w.title || '',
       description: w.description || '',
       category: w.category || '',
       status: w.status || 'upcoming',
-      areaId: w.areaId?._id || w.areaId || w.area?._id || '',
+      areaId: targetAreaId,
       budget: w.budget || '',
       location: w.location || '',
       isPublished: w.isPublished !== false,
@@ -289,7 +460,7 @@ export default function WorksPage() {
           <h1 className="text-xl font-black text-gray-900">Development Works</h1>
           <p className="text-xs text-gray-400">{total} works</p>
         </div>
-        <button onClick={() => { setForm(EMPTY); setEditId(null); setShowForm(true) }}
+        <button onClick={() => { setForm(EMPTY); setEditId(null); setSelectedAreas({}); setShowForm(true) }}
           className="btn-primary flex items-center gap-1.5 px-4 py-2.5 text-sm cursor-pointer">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           Add Work
@@ -339,27 +510,165 @@ export default function WorksPage() {
 
               {/* Category */}
               <div>
-                <label className="text-xs font-bold text-gray-700 mb-1 block">Category *</label>
-                <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                  placeholder="e.g. Roads & Infrastructure"
-                  className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)]" />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {CATEGORY_SUGGESTIONS.map(cat => (
-                    <button key={cat} type="button" onClick={() => setForm({ ...form, category: cat })}
-                      className={`text-[10px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${form.category === cat ? 'bg-primary text-white border-transparent' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
-                      style={form.category === cat ? { background: 'var(--primary)', color: '#fff' } : {}}>
-                      {cat}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-700">Category *</label>
+                  {form.category?.trim() && !customCategories.some(c => c.toLowerCase() === form.category.trim().toLowerCase()) && (
+                    <button
+                      type="button"
+                      onClick={handleAddCategory}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                    >
+                      + Save as Category
                     </button>
-                  ))}
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                    placeholder="e.g. Roads & Infrastructure"
+                    className="flex-1 border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)]" />
+                </div>
+                
+                {/* Category Chips with Edit & Delete */}
+                <div className="mt-2.5">
+                  <p className="text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">Quick Suggestions (Click to select, edit, delete):</p>
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                    {customCategories.map(cat => {
+                      const isSelected = form.category?.trim().toLowerCase() === cat.toLowerCase()
+                      const isEditing = categoryToEdit === cat
+
+                      if (isEditing) {
+                        return (
+                          <div key={cat} className="flex items-center gap-1 bg-white border border-primary p-1 rounded-xl shadow-xs">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingCategoryName}
+                              onChange={e => setEditingCategoryName(e.target.value)}
+                              className="text-xs px-2 py-0.5 border border-gray-300 rounded-lg outline-none w-28"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => handleSaveEditCategory(cat, e)}
+                              className="p-1 bg-green-600 text-white rounded-md cursor-pointer hover:bg-green-700"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setCategoryToEdit(null) }}
+                              className="p-1 bg-gray-200 text-gray-700 rounded-md cursor-pointer hover:bg-gray-300"
+                            >
+                              <CloseIcon className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div
+                          key={cat}
+                          onClick={() => setForm({ ...form, category: cat })}
+                          className={`group inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-xl border transition-all cursor-pointer select-none ${
+                            isSelected
+                              ? 'bg-primary text-white border-transparent shadow-xs'
+                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                          }`}
+                          style={isSelected ? { background: 'var(--primary)', color: '#fff' } : {}}
+                        >
+                          <span className="truncate max-w-[140px]">{cat}</span>
+                          <div className="inline-flex items-center gap-1 opacity-70 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              title="Edit Category"
+                              onClick={(e) => handleStartEditCategory(cat, e)}
+                              className={`p-0.5 rounded hover:scale-110 transition-transform cursor-pointer ${
+                                isSelected ? 'text-white/90 hover:text-white' : 'text-gray-400 hover:text-blue-600'
+                              }`}
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Remove Category"
+                              onClick={(e) => handleDeleteCategory(cat, e)}
+                              className={`p-0.5 rounded hover:scale-110 transition-transform cursor-pointer ${
+                                isSelected ? 'text-white/90 hover:text-white' : 'text-gray-400 hover:text-red-600'
+                              }`}
+                            >
+                              <CloseIcon className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* Area & Budget */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Area / Ward</label>
-                  <select value={form.areaId} onChange={e => setForm({ ...form, areaId: e.target.value })}
-                    className="w-full border border-gray-200 rounded-2xl px-3 h-11 text-xs outline-none focus:border-[var(--primary)] bg-white">
+              {/* Hierarchical Area Selection (Block -> Gram Panchayat -> Village) */}
+              <div className="bg-gray-50/80 p-3.5 rounded-2xl border border-gray-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    <span>Area Hierarchy (Block → Panchayat → Village)</span>
+                  </label>
+                  {form.areaId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAreas({})
+                        setForm(prev => ({ ...prev, areaId: '' }))
+                      }}
+                      className="text-[10px] font-bold text-red-500 hover:text-red-700 cursor-pointer"
+                    >
+                      Clear Area
+                    </button>
+                  )}
+                </div>
+
+                {areaTreeData.levels && areaTreeData.levels.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {areaTreeData.levels
+                      .filter(lvl => (lvl.name || '').toLowerCase() !== 'ward' && (lvl.levelOrder || 0) <= 3)
+                      .map((lvl, index) => {
+                        const lvlId = String(lvl._id || lvl.id)
+                        const isFirstLevel = index === 0
+                        const prevLevels = areaTreeData.levels.filter(l => (l.name || '').toLowerCase() !== 'ward' && (l.levelOrder || 0) <= 3)
+                        const prevLevel = prevLevels[index - 1]
+                        const prevLevelId = prevLevel ? String(prevLevel._id || prevLevel.id) : null
+                        const isParentSelected = isFirstLevel || (prevLevelId && Boolean(selectedAreas[prevLevelId]))
+                        const options = isParentSelected ? getAreaOptionsForLevel(index) : []
+                        const currentValue = selectedAreas[lvlId] || ''
+
+                        if (!isParentSelected && !currentValue) return null
+
+                        return (
+                          <div key={lvlId} className="flex flex-col gap-1">
+                            <label className="text-[11px] font-bold text-gray-600">
+                              {lvl.name || `Level ${index + 1}`}
+                            </label>
+                            <select
+                              value={currentValue}
+                              onChange={(e) => handleAreaSelect(lvlId, index, e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 h-10 text-xs outline-none focus:border-[var(--primary)] bg-white font-medium"
+                            >
+                              <option value="">{`-- Select ${lvl.name || 'Area'} --`}</option>
+                              {options.map((opt) => (
+                                <option key={opt._id || opt.id} value={opt._id || opt.id}>
+                                  {opt.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      })}
+                  </div>
+                ) : (
+                  <select
+                    value={form.areaId}
+                    onChange={(e) => setForm({ ...form, areaId: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 h-10 text-xs outline-none focus:border-[var(--primary)] bg-white"
+                  >
                     <option value="">All Area / Select</option>
                     {areas.map(a => (
                       <option key={a._id} value={a._id}>
@@ -367,13 +676,15 @@ export default function WorksPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Budget (Laagat)</label>
-                  <input value={form.budget || ''} onChange={e => setForm({ ...form, budget: e.target.value })}
-                    placeholder="e.g. ₹ 15,00,000"
-                    className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)]" />
-                </div>
+                )}
+              </div>
+
+              {/* Budget */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 mb-1 block">Budget (Laagat)</label>
+                <input value={form.budget || ''} onChange={e => setForm({ ...form, budget: e.target.value })}
+                  placeholder="e.g. ₹ 15,00,000"
+                  className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)]" />
               </div>
 
               {/* Location & Status */}
@@ -387,10 +698,10 @@ export default function WorksPage() {
                 <div>
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Status (Sthiti)</label>
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                    className="w-full border border-gray-200 rounded-2xl px-3 h-11 text-xs outline-none bg-white">
-                    <option value="upcoming">⏳ Upcoming (Prastavit)</option>
-                    <option value="in_progress">🔵 In Progress (Chal raha hai)</option>
-                    <option value="completed">✅ Completed (Poora)</option>
+                    className="w-full border border-gray-200 rounded-2xl px-3 h-11 text-xs outline-none bg-white font-semibold">
+                    <option value="upcoming">Upcoming (Prastavit)</option>
+                    <option value="in_progress">In Progress (Chal raha hai)</option>
+                    <option value="completed">Completed (Poora)</option>
                   </select>
                 </div>
               </div>
@@ -565,6 +876,7 @@ export default function WorksPage() {
           <div className="space-y-3">
             {items.map(w => {
               const sc = statusConfig[w.status?.toLowerCase()] || statusConfig.upcoming
+              const StatusIcon = sc.Icon
               const areaName = w.areaId?.name || w.area?.name || 'All Area'
               const thumbImg = w.images?.[0] || w.beforeAfter?.after?.[0] || w.beforeAfter?.before?.[0] || w.beforeImages?.[0] || w.afterImages?.[0]
               const totalPhotos = (w.images?.length || 0) + (w.beforeAfter?.before?.length || 0) + (w.beforeAfter?.after?.length || 0)
@@ -581,8 +893,10 @@ export default function WorksPage() {
                       onError={(e) => { e.target.onerror = null; e.target.src = SVG_FALLBACK }}
                       className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-gray-100 shadow-sm" />
                   ) : (
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-2xl shadow-inner"
-                      style={{ background: 'var(--primary-light)' }}>🏗️</div>
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"
+                      style={{ background: 'var(--primary-light)' }}>
+                      <HardHat className="w-7 h-7" style={{ color: 'var(--primary)' }} />
+                    </div>
                   )}
 
                   <div className="flex-1 min-w-0">
@@ -592,21 +906,24 @@ export default function WorksPage() {
                         <span className="text-[9px] font-bold px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">Draft</span>
                       )}
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                      {w.category || 'General'} · 📍 {areaName} {w.location ? `(${w.location})` : ''}
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate flex items-center gap-1">
+                      <span>{w.category || 'General'}</span>
+                      <span>·</span>
+                      <MapPin className="w-3 h-3 shrink-0 text-gray-400" />
+                      <span>{areaName} {w.location ? `(${w.location})` : ''}</span>
                     </p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.bg} ${sc.text}`}>
-                        {sc.emoji} {sc.label}
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${sc.bg} ${sc.text}`}>
+                        <StatusIcon className="w-3 h-3" /> {sc.label}
                       </span>
                       {w.budget && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          💰 {w.budget}
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <IndianRupee className="w-3 h-3" /> {w.budget}
                         </span>
                       )}
                       {totalPhotos > 0 && (
-                        <span className="text-[10px] font-medium text-gray-400">
-                          📷 {totalPhotos}
+                        <span className="text-[10px] font-medium text-gray-400 flex items-center gap-1">
+                          <Camera className="w-3 h-3" /> {totalPhotos}
                         </span>
                       )}
                     </div>
@@ -614,12 +931,14 @@ export default function WorksPage() {
 
                   <div className="flex flex-col gap-1.5 shrink-0 items-end" onClick={e => e.stopPropagation()}>
                     <button onClick={e => openEdit(w, e)}
-                      className="px-2.5 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 cursor-pointer">
-                      Edit
+                      className="px-2.5 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 cursor-pointer flex items-center gap-1">
+                      <Edit2 className="w-3 h-3" />
+                      <span>Edit</span>
                     </button>
                     <button onClick={e => handleDelete(w._id, w.title, e)}
-                      className="px-2.5 py-1 text-xs font-bold text-red-500 bg-red-50 rounded-xl hover:bg-red-100 cursor-pointer">
-                      Del
+                      className="px-2.5 py-1 text-xs font-bold text-red-500 bg-red-50 rounded-xl hover:bg-red-100 cursor-pointer flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" />
+                      <span>Del</span>
                     </button>
                   </div>
                 </div>
@@ -628,7 +947,9 @@ export default function WorksPage() {
           </div>
           {items.length === 0 && (
             <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
-              <p className="text-3xl mb-2">🏗️</p>
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-2 text-gray-400">
+                <HardHat className="w-6 h-6" />
+              </div>
               <p className="text-sm font-bold text-gray-600">No development works found</p>
               <p className="text-xs text-gray-400 mt-1">Naya work add karne ke liye "+ Add Work" button par click karein</p>
             </div>

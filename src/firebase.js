@@ -2,15 +2,17 @@ import { initializeApp } from 'firebase/app'
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
 import { NotificationsAPI } from './api/adminApis'
 
-export const VAPID_KEY = 'BLqi31E2ot1ukfkmxam2dqCGptT3PnthMyuHkt6NQstph0dAYUk7MN5LsJhRR3_7fPW0XPfyviUHQ4NcfBRpP9Q'
+export const VAPID_KEY =
+  import.meta.env.VITE_FIREBASE_VAPID_KEY ||
+  'BLqi31E2ot1ukfkmxam2dqCGptT3PnthMyuHkt6NQstph0dAYUk7MN5LsJhRR3_7fPW0XPfyviUHQ4NcfBRpP9Q'
 
 export const firebaseConfig = {
-  apiKey: 'AIzaSyDAk7btG-dpz1dZiUVQbTBQJJHr07LPn-E',
-  authDomain: 'device-streaming-3d1aacd5.firebaseapp.com',
-  projectId: 'device-streaming-3d1aacd5',
-  storageBucket: 'device-streaming-3d1aacd5.firebasestorage.app',
-  messagingSenderId: '726097401892',
-  appId: '1:726097401892:web:3271125037d83381d260b1',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDAk7btG-dpz1dZiUVQbTBQJJHr07LPn-E',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'device-streaming-3d1aacd5.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'device-streaming-3d1aacd5',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'device-streaming-3d1aacd5.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '726097401892',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:726097401892:web:3271125037d83381d260b1',
 }
 
 // Initialize Firebase

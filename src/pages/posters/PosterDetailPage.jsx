@@ -9,13 +9,13 @@ import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
 import { confirmDialog } from '../../utils/sweetAlert'
 
 const FIELD_LABELS = {
-  photo: '📷 Photo Zone',
-  name: '✏️ Name',
-  designation: '💼 Designation',
-  text: '📝 Custom Text',
-  logo: '🏷️ Logo',
-  background: '🎨 Background',
-  area: '📍 Area',
+  photo: 'Photo Zone',
+  name: 'Name',
+  designation: 'Designation',
+  text: 'Custom Text',
+  logo: 'Logo',
+  background: 'Background',
+  area: 'Area',
 }
 
 export default function PosterDetailPage() {
