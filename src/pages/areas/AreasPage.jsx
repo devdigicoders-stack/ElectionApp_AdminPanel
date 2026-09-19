@@ -12,6 +12,8 @@ import {
   Building2,
   CheckCircle2,
   Sparkles,
+  RefreshCw,
+  Search,
 } from 'lucide-react'
 import { AreasAPI } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
@@ -393,6 +395,15 @@ export default function AreasPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => load()}
+            disabled={loading}
+            title="Refresh Areas"
+            className="p-2 border border-gray-200 rounded-xl sm:rounded-2xl text-gray-600 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+          </button>
+
           <button
             onClick={() => setShowLevelModal(true)}
             className="flex items-center gap-1 text-xs font-bold px-3 py-2 border border-gray-200 rounded-xl sm:rounded-2xl text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
