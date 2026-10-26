@@ -93,7 +93,7 @@ export default function WorksPage() {
   const [editingCategoryName, setEditingCategoryName] = useState('')
   const [areaTreeData, setAreaTreeData] = useState({ levels: [], tree: [] })
   const [selectedAreas, setSelectedAreas] = useState({})
-  const limit = 20
+  const [limit, setLimit] = useState(10)
 
   // Flatten area tree to simple list for dropdown
   const flattenAreas = (nodes, result = []) => {
@@ -169,7 +169,7 @@ export default function WorksPage() {
       setAreas(flat)
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
-  }, [page, filter, filterCategory, filterAreaId])
+  }, [page, limit, filter, filterCategory, filterAreaId])
 
   useEffect(() => { load() }, [load])
 
@@ -1039,13 +1039,50 @@ export default function WorksPage() {
               <p className="text-xs text-gray-400 mt-1">Naya work add karne ke liye "+ Add Work" button par click karein</p>
             </div>
           )}
-          {total > limit && (
-            <div className="flex items-center justify-between pt-2">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="text-xs font-bold disabled:opacity-30 cursor-pointer px-3 py-1.5 bg-white border border-gray-200 rounded-xl" style={{ color: 'var(--primary)' }}>← Prev</button>
-              <span className="text-xs text-gray-400 font-medium">Page {page} of {Math.ceil(total / limit)}</span>
-              <button disabled={page >= Math.ceil(total / limit)} onClick={() => setPage(p => p + 1)} className="text-xs font-bold disabled:opacity-30 cursor-pointer px-3 py-1.5 bg-white border border-gray-200 rounded-xl" style={{ color: 'var(--primary)' }}>Next →</button>
+          {/* Pagination & Page Size Control */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 bg-white p-3 rounded-2xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500">Rows per page:</span>
+              <select
+                value={limit}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value))
+                  setPage(1)
+                }}
+                className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-bold text-gray-700 bg-gray-50 outline-none focus:border-[var(--primary)] cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-xs text-gray-400 font-medium">
+                (Showing {items.length > 0 ? (page - 1) * limit + 1 : 0} - {Math.min(page * limit, total)} of {total})
+              </span>
             </div>
-          )}
+
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={page === 1} 
+                onClick={() => setPage(p => Math.max(1, p - 1))} 
+                className="text-xs font-bold disabled:opacity-30 cursor-pointer px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all" 
+                style={{ color: 'var(--primary)' }}
+              >
+                ← Prev
+              </button>
+              <span className="text-xs text-gray-600 font-bold px-1">
+                Page {page} of {Math.max(1, Math.ceil(total / limit))}
+              </span>
+              <button 
+                disabled={page >= Math.ceil(total / limit) || total === 0} 
+                onClick={() => setPage(p => p + 1)} 
+                className="text-xs font-bold disabled:opacity-30 cursor-pointer px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all" 
+                style={{ color: 'var(--primary)' }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>
