@@ -147,16 +147,20 @@ export default function WorksPage() {
       let statsObj = { completed: 0, in_progress: 0, upcoming: 0 }
       if (Array.isArray(stData)) {
         stData.forEach(item => {
-          const key = item._id?.toLowerCase()
-          if (key && statsObj[key] !== undefined) {
-            statsObj[key] = item.count
+          const key = String(item._id || '').toLowerCase()
+          if (key.includes('complete') || key.includes('पूर्ण')) {
+            statsObj.completed = (statsObj.completed || 0) + Number(item.count || 0)
+          } else if (key.includes('progress') || key.includes('ongoing') || key.includes('प्रगति')) {
+            statsObj.in_progress = (statsObj.in_progress || 0) + Number(item.count || 0)
+          } else {
+            statsObj.upcoming = (statsObj.upcoming || 0) + Number(item.count || 0)
           }
         })
       } else if (typeof stData === 'object' && stData !== null) {
         statsObj = {
-          completed: stData.completed ?? 0,
-          in_progress: stData.inProgress ?? stData.in_progress ?? 0,
-          upcoming: stData.upcoming ?? 0,
+          completed: Number(stData.completed || stData.Completed || 0),
+          in_progress: Number(stData.in_progress || stData.inProgress || stData.InProgress || 0),
+          upcoming: Number(stData.upcoming || stData.Upcoming || 0),
         }
       }
       setStats(statsObj)

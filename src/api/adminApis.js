@@ -255,7 +255,36 @@ export const ComplaintsAPI = {
 export const WorksAPI = {
   getAll: (params = {}) => api('GET', `/works?${new URLSearchParams(params)}`),
   getOne: (id) => api('GET', `/works/${id}`),
-  getStats: () => api('GET', '/works/stats'),
+  getStats: async () => {
+    try {
+      const res = await api('GET', '/works/stats');
+      const data = res?.data ?? res;
+      // If array of stats with count returned
+      if (Array.isArray(data) && data.length > 0) return data;
+      if (data && (data.completed || data.in_progress || data.upcoming)) return data;
+    } catch {}
+
+    // Fallback: Query counts per status directly from /works
+    try {
+      const [compRes, progRes, upcRes] = await Promise.all([
+        api('GET', '/works?status=completed&limit=1').catch(() => null),
+        api('GET', '/works?status=in_progress&limit=1').catch(() => null),
+        api('GET', '/works?status=upcoming&limit=1').catch(() => null),
+      ]);
+
+      const completed = compRes?.data?.total ?? compRes?.total ?? 0;
+      const in_progress = progRes?.data?.total ?? progRes?.total ?? 0;
+      const upcoming = upcRes?.data?.total ?? upcRes?.total ?? 0;
+
+      return {
+        completed,
+        in_progress,
+        upcoming
+      };
+    } catch {
+      return { completed: 0, in_progress: 0, upcoming: 0 };
+    }
+  },
   create: (data) => api('POST', '/works', data),
   update: (id, data) => api('PATCH', `/works/${id}`, data),
   remove: (id) => api('DELETE', `/works/${id}`),
