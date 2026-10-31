@@ -42,6 +42,7 @@ import GalleryDetailPage from './pages/gallery/GalleryDetailPage'
 import ManifestoDetailPage from './pages/manifesto/ManifestoDetailPage'
 import PublicPrivacyPolicyPage from './pages/PublicPrivacyPolicyPage'
 import PublicTermsPage from './pages/PublicTermsPage'
+import DeleteAccountRequestPage from './pages/DeleteAccountRequestPage'
 
 function AppRoutes() {
   const [showSplash, setShowSplash] = useState(true)
@@ -56,6 +57,8 @@ function AppRoutes() {
       <Route path="/privacy" element={<PublicPrivacyPolicyPage />} />
       <Route path="/terms-conditions" element={<PublicTermsPage />} />
       <Route path="/terms" element={<PublicTermsPage />} />
+      <Route path="/delete-account" element={<DeleteAccountRequestPage />} />
+      <Route path="/account-deletion" element={<DeleteAccountRequestPage />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
