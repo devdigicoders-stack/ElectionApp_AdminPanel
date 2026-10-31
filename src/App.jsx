@@ -40,6 +40,8 @@ import PollDetailPage from './pages/polls/PollDetailPage'
 import MemberDetailPage from './pages/membership/MemberDetailPage'
 import GalleryDetailPage from './pages/gallery/GalleryDetailPage'
 import ManifestoDetailPage from './pages/manifesto/ManifestoDetailPage'
+import PublicPrivacyPolicyPage from './pages/PublicPrivacyPolicyPage'
+import PublicTermsPage from './pages/PublicTermsPage'
 
 function AppRoutes() {
   const [showSplash, setShowSplash] = useState(true)
@@ -50,6 +52,10 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/privacy-policy" element={<PublicPrivacyPolicyPage />} />
+      <Route path="/privacy" element={<PublicPrivacyPolicyPage />} />
+      <Route path="/terms-conditions" element={<PublicTermsPage />} />
+      <Route path="/terms" element={<PublicTermsPage />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
