@@ -96,12 +96,13 @@ function applyTheme(branding, tenant) {
 
   // ✅ 2. Update Page Title dynamically
   const tenantName =
-    tenant?.title ||
-    tenant?.name ||
-    branding?.platformName ||
     branding?.title ||
+    branding?.platformName ||
+    branding?.appName ||
+    tenant?.name ||
+    tenant?.title ||
     branding?.leaderName ||
-    'Leader'
+    'Admin'
   document.title = `${tenantName} — Admin Panel`
 }
 

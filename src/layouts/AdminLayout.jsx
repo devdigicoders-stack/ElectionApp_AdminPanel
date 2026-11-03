@@ -335,7 +335,7 @@ export default function AdminLayout() {
             </div>
             <div>
               <p className="text-[13px] font-black text-gray-900 leading-none truncate max-w-[160px] sm:max-w-xs">
-                {tenant?.name || branding?.platformName || currentTitle}
+                {branding?.title || branding?.platformName || branding?.appName || tenant?.name || currentTitle}
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[9px] font-bold tracking-widest" style={{ color: 'var(--primary)' }}>
