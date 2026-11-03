@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Pencil, X, Save, User, MapPin, Phone, Mail, Globe, MessageCircle, CheckCircle, Building2, Camera, Image as ImageIcon } from 'lucide-react'
+import { Pencil, X, Save, User, MapPin, Phone, Mail, Globe, MessageCircle, CheckCircle, Building2, Camera, Image as ImageIcon, Calendar, Plus, Trash2 } from 'lucide-react'
 import { LeaderAPI, UploadAPI, BASE_URL } from '../../api/adminApis'
 import { Skeleton, ApiError, useToast } from '../../hooks/useFetch.jsx'
 
@@ -22,6 +22,7 @@ const SOCIAL_ICONS = {
 const INITIAL_FORM = {
   fullName: '', designation: '', party: '', constituency: '', bio: '', message: '',
   profileImageUrl: '', coverImageUrl: '', achievements: '',
+  timeline: [],
   socialLinks: { facebook: '', twitter: '', instagram: '', youtube: '', whatsapp: '', website: '' },
   contactInfo: { phone: '', email: '', address: '', officeAddress: '' },
 }
@@ -129,6 +130,36 @@ function ProfileView({ data, onEdit }) {
                   <CheckCircle className="w-3 h-3 text-orange-500" />
                 </div>
                 <p className="text-sm text-gray-700 font-medium">{a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Political Journey / Timeline (सफ़रनामा) */}
+      {Array.isArray(data.timeline) && data.timeline.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3 flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> राजनीतिक एवं सामाजिक सफ़रनामा (Timeline)
+          </p>
+          <div className="space-y-3 relative pl-3">
+            <div className="absolute left-[19px] top-2 bottom-2 w-0.5 bg-orange-100"></div>
+            {data.timeline.map((item, i) => (
+              <div key={item._id || i} className="flex items-start gap-3 relative z-10">
+                <div className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
+                  {i + 1}
+                </div>
+                <div className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-md">
+                      {item.year}
+                    </span>
+                    <h4 className="text-xs font-bold text-gray-900">{item.title}</h4>
+                  </div>
+                  {item.description && (
+                    <p className="text-xs text-gray-600">{item.description}</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -266,6 +297,98 @@ function ProfileEditForm({ form, setForm, onSave, onCancel, saving }) {
         </div>
       </div>
 
+      {/* Timeline (सफ़रनामा) */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              <span>राजनीतिक एवं सामाजिक सफ़रनामा (Journey Timeline)</span>
+            </h2>
+            <p className="text-[11px] text-gray-400">Milestones jaise Year, Title aur Description add karein</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const current = Array.isArray(form.timeline) ? [...form.timeline] : []
+              current.push({ year: '', title: '', description: '' })
+              u('timeline', current)
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-xl text-xs font-bold hover:bg-orange-100 transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Naya Milestone
+          </button>
+        </div>
+
+        {Array.isArray(form.timeline) && form.timeline.length > 0 ? (
+          <div className="space-y-3 pt-1">
+            {form.timeline.map((item, idx) => (
+              <div key={idx} className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-500">#{idx + 1} Milestone</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = form.timeline.filter((_, i) => i !== idx)
+                      u('timeline', updated)
+                    }}
+                    className="p-1 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                    title="Delete milestone"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-1">
+                    <label className="text-[10px] font-bold text-gray-500 block mb-0.5">Year (वर्ष) *</label>
+                    <input
+                      placeholder="उदा. 2017 या 2022"
+                      value={item.year || ''}
+                      onChange={(e) => {
+                        const updated = [...form.timeline]
+                        updated[idx].year = e.target.value
+                        u('timeline', updated)
+                      }}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-2.5 h-9 text-xs outline-none focus:border-orange-400"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] font-bold text-gray-500 block mb-0.5">Title (पद / उपलब्धि) *</label>
+                    <input
+                      placeholder="उदा. जिला पंचायत सदस्य / विधायक निर्वाचित"
+                      value={item.title || ''}
+                      onChange={(e) => {
+                        const updated = [...form.timeline]
+                        updated[idx].title = e.target.value
+                        u('timeline', updated)
+                      }}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-2.5 h-9 text-xs outline-none focus:border-orange-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 block mb-0.5">Description (विवरण)</label>
+                  <input
+                    placeholder="उदा. ग्रामीण विकास का नेतृत्व / ऐतिहासिक विजय"
+                    value={item.description || ''}
+                    onChange={(e) => {
+                      const updated = [...form.timeline]
+                      updated[idx].description = e.target.value
+                      u('timeline', updated)
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-lg px-2.5 h-9 text-xs outline-none focus:border-orange-400"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-5 border border-dashed border-gray-200 rounded-xl text-xs text-gray-400">
+            Koi milestone nahi hai. "Naya Milestone" button dabayein.
+          </div>
+        )}
+      </div>
+
       {/* Social Links */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
         <h2 className="text-sm font-bold text-gray-700">Social Links</h2>
@@ -350,6 +473,7 @@ export default function LeaderProfilePage() {
           profileImageUrl: d.profileImageUrl || '',
           coverImageUrl: d.coverImageUrl || '',
           achievements: Array.isArray(d.achievements) ? d.achievements.join('\n') : (d.achievements || ''),
+          timeline: Array.isArray(d.timeline) ? d.timeline : [],
           socialLinks: { facebook: d.socialLinks?.facebook || '', twitter: d.socialLinks?.twitter || '', instagram: d.socialLinks?.instagram || '', youtube: d.socialLinks?.youtube || '', whatsapp: d.socialLinks?.whatsapp || '', website: d.socialLinks?.website || '' },
           contactInfo: { phone: d.contactInfo?.phone || '', email: d.contactInfo?.email || '', address: d.contactInfo?.address || '', officeAddress: d.contactInfo?.officeAddress || '' },
         })
@@ -367,6 +491,15 @@ export default function LeaderProfilePage() {
         ...form,
         achievements: form.achievements
           ? form.achievements.split('\n').map(s => s.trim()).filter(Boolean)
+          : [],
+        timeline: Array.isArray(form.timeline)
+          ? form.timeline
+              .filter(item => item.year?.trim() || item.title?.trim())
+              .map(item => ({
+                year: item.year?.trim() || '',
+                title: item.title?.trim() || '',
+                description: item.description?.trim() || ''
+              }))
           : [],
       }
       await LeaderAPI.update(payload)
