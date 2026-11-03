@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [copiedKey, setCopiedKey] = useState(null)
 
   // Editable branding states
+  const [appTitle, setAppTitle] = useState('')
   const [leaderName, setLeaderName] = useState('')
   const [tagline, setTagline] = useState('')
   const [primaryColor, setPrimaryColor] = useState('#a8150b')
@@ -98,6 +99,7 @@ export default function SettingsPage() {
       setUsage(usgData)
 
       // Sync form fields from backend branding
+      setAppTitle(brandData?.title || brandData?.platformName || brandData?.appName || cfgData?.branding?.title || cfgData?.branding?.platformName || cfgData?.branding?.appName || cfgData?.tenant?.name || '')
       setLeaderName(brandData?.leaderName || cfgData?.branding?.leaderName || '')
       setTagline(brandData?.tagline || cfgData?.branding?.tagline || '')
       setPrimaryColor(brandData?.primaryColor || cfgData?.branding?.primaryColor || '#a8150b')
@@ -147,6 +149,9 @@ export default function SettingsPage() {
       }
 
       const payload = {
+        title: appTitle.trim(),
+        platformName: appTitle.trim(),
+        appName: appTitle.trim(),
         leaderName: leaderName.trim(),
         tagline: tagline.trim(),
         primaryColor,
@@ -325,25 +330,40 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Leader Name & Tagline Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* App Title, Leader Name & Tagline Inputs */}
+            <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-700 mb-1.5 block">Leader / Admin Name</label>
+                <label className="text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span>App Name / Portal Title (लोगो के नीचे दिखने वाला मुख्य नाम &amp; App Title)</span>
+                  <span className="text-[11px] font-normal text-gray-400">PWA Splash &amp; Browser Header</span>
+                </label>
                 <input
-                  value={leaderName}
-                  onChange={(e) => setLeaderName(e.target.value)}
-                  placeholder="e.g. Narendra Modi / Shri Leader"
-                  className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)] transition-colors"
+                  value={appTitle}
+                  onChange={(e) => setAppTitle(e.target.value)}
+                  placeholder="e.g. मेरा मड़ियाहू"
+                  className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)] transition-colors font-semibold"
                 />
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-700 mb-1.5 block">Portal Tagline / Slogan</label>
-                <input
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  placeholder="e.g. Seva • Samarpan • Vikas"
-                  className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)] transition-colors"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 mb-1.5 block">Leader / Admin Name (पिल में दिखने वाला नाम)</label>
+                  <input
+                    value={leaderName}
+                    onChange={(e) => setLeaderName(e.target.value)}
+                    placeholder="e.g. डॉo आर.के. पटेल"
+                    className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 mb-1.5 block">Portal Tagline / Slogan (नीचे दिखने वाली टैगलाइन)</label>
+                  <input
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    placeholder="e.g. विधायक मड़ियाहूँ"
+                    className="w-full border border-gray-200 rounded-2xl px-4 h-11 text-sm outline-none focus:border-[var(--primary)] transition-colors"
+                  />
+                </div>
               </div>
             </div>
 
